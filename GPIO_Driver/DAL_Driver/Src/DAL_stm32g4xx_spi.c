@@ -8,6 +8,15 @@
 #include "DAL_stm32g4xx_spi.h"
 #include <stdio.h>
 
+/**
+ * @fn void DAL_SPI_Peri_CLK(SPI_Regdef_t*, uint8_t)
+ * @brief Enable or disable peripheral clk
+ *
+ * @pre
+ * @post
+ * @param pSPIx
+ * @param EnOrDi
+ */
 void DAL_SPI_Peri_CLK(SPI_Regdef_t *pSPIx, uint8_t EnOrDi)
 {
 	if(EnOrDi == DAL_ENABLE)
@@ -48,6 +57,15 @@ void DAL_SPI_Denit(SPI_Regdef_t *pSPIx)
 
 }
 
+/**
+ * @fn void DAL_SPI_PeripheralEnDi(SPI_Handle_t*, uint8_t)
+ * @brief Enable or disable SPI peripheral
+ *
+ * @pre
+ * @post
+ * @param pSPI_Handle
+ * @param ENorDi
+ */
 void DAL_SPI_PeripheralEnDi(SPI_Handle_t *pSPI_Handle ,uint8_t ENorDi)
 {
 	if(ENorDi == DAL_ENABLE)
@@ -62,6 +80,14 @@ void DAL_SPI_PeripheralEnDi(SPI_Handle_t *pSPI_Handle ,uint8_t ENorDi)
 	}
 }
 
+/**
+ * @fn void DAL_SPI_Init(SPI_Handle_t*)
+ * @brief Initialize SPI peripheral
+ *
+ * @pre
+ * @post
+ * @param pSPI_Handle
+ */
 void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 {
 	uint32_t temp=0;
@@ -104,6 +130,15 @@ void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 	pSPI_Handle->pSPIx->SPI_CR1 = 0xFFFF;
 }
 
+/**
+ * @fn void DAL_SPI_SSI(SPI_Handle_t*, uint8_t)
+ * @brief Enable or disable SSI - used for software nss management
+ *
+ * @pre
+ * @post
+ * @param pSPI_Handle
+ * @param Flagname
+ */
 void DAL_SPI_SSI(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 {
 	if(Flagname == DAL_ENABLE)
@@ -115,7 +150,17 @@ void DAL_SPI_SSI(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_DI << SPI_CR1_SSI);
 	}
 }
-
+/**
+ * @fn uint8_t DAL_SPI_SendData(SPI_Handle_t*, uint8_t*, uint32_t)
+ * @brief Send data through SPI peripheral
+ *
+ * @pre
+ * @post
+ * @param pSPI_Handle
+ * @param pdata
+ * @param len
+ * @return uint8_t
+ */
 uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len)
 {
 	//1. check wheather data is null or length is 0
@@ -150,7 +195,16 @@ uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t l
 	}
 	return DAL_OK;
 }
-
+/**
+ * @fn uint8_t DAL_SPI_FlagStatus(SPI_Handle_t*, uint8_t)
+ * @brief Check status of flag in SR reg
+ *
+ * @pre
+ * @post
+ * @param pSPI_Handle
+ * @param Flagname
+ * @return uint8_t
+ */
 uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 {
 //	if(Flagname == SPI_SR_BSY)
@@ -167,8 +221,41 @@ uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 //	else if(Flagname == SPI_SR_BSY)
 	return DAL_ERROR;
 }
-
-void DAL_SPI_ReceiveData()
+/**
+ * @fn void DAL_SPI_ReceiveData(SPI_Handle_t*, uint8_t*, uint32_t)
+ * @brief Receive data through SPI peripheral
+ *
+ * @pre
+ * @post
+ * @param pSPI_Handle
+ * @param pdata
+ * @param len
+ */
+void DAL_SPI_ReceiveData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len)
 {
-
+	//1. until length is 0
+	while(len > 0)
+	{
+		//2. check rx buffer is not empty by reading status in SR reg
+		while(DAL_SPI_FlagStatus(pSPI_Handle , SPI_SR_RXNE) == DAL_OK)
+		{
+			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3)) // 8 bit dff
+			{
+				//3. load data into dr respective of dff
+				//4. load data
+				*pdata = pSPI_Handle->pSPIx->SPI_DR;
+				//5. increment data pointer
+				pdata++;
+				//6. decrement length
+				len--;
+			}
+			else // 16 bit dff
+			{
+				*((uint16_t*)pdata) = pSPI_Handle->pSPIx->SPI_DR;
+				(uint16_t*)pdata++;
+				len--;
+				len--;
+			}
+		}
+	}
 }
