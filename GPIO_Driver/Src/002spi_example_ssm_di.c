@@ -34,14 +34,14 @@ int main(void)
 	spi2.spi_config_t.SPI_CPHA = SPI_CPHA0;
 	spi2.spi_config_t.SPI_DFF = SPI_DFF8;
 	spi2.spi_config_t.SPI_Mode = SPI_MASTER;
-	spi2.spi_config_t.SPI_SSM = SPI_SSM_DI;
+	spi2.spi_config_t.SPI_SSM = SPI_SSM_EN;
 	spi2.spi_config_t.SPI_Speed = SPI_SPEED_FPCLKBY2;
 	//1. Init GPIO pins
 	SPI_GPIO_Init();
 	//2. Init SPI
 	DAL_SPI_Init(&spi2);
 	//3. Init SSI -  no need for hardware nss
-//	DAL_SPI_SSI(&spi1, DAL_ENABLE);
+	DAL_SPI_SSI(&spi2, DAL_DISABLE);
   	//4. Enable SPI
 	DAL_SPI_PeripheralEnDi(&spi2 , DAL_ENABLE);
 	//5. Send data
@@ -50,6 +50,7 @@ int main(void)
 	while (DAL_SPI_FlagStatus(&spi2 , SPI_SR_BSY) == DAL_BUSY);
 	//7. Disable SPI
 	DAL_SPI_PeripheralEnDi(&spi2 , DAL_DISABLE);
+
 	while(1);
 	return 0;
 }

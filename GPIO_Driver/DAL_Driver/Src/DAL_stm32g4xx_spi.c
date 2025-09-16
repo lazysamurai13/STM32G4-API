@@ -76,7 +76,7 @@ void DAL_SPI_PeripheralEnDi(SPI_Handle_t *pSPI_Handle ,uint8_t ENorDi)
 	}
 	else{
 	//Disable SPI Peripheral
-		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_ENABLE << SPI_CR1_SPE);
+		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_DISABLE << SPI_CR1_SPE);
 	}
 }
 
@@ -90,7 +90,7 @@ void DAL_SPI_PeripheralEnDi(SPI_Handle_t *pSPI_Handle ,uint8_t ENorDi)
  */
 void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 {
-	uint32_t temp=0;
+	volatile uint32_t temp=0;
 	//1. Enable peripheral clk
 	DAL_SPI_Peri_CLK(pSPI_Handle->pSPIx, DAL_ENABLE);
 	//2. Set SPI mode
@@ -142,11 +142,11 @@ void DAL_SPI_SSI(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 {
 	if(Flagname == DAL_ENABLE)
 	{
-		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_EN << SPI_CR1_SSI);
+		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_DI << SPI_CR1_SSI);
 	}
 	else
 	{
-		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_DI << SPI_CR1_SSI);
+		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_EN << SPI_CR1_SSI);
 	}
 }
 /**
@@ -170,26 +170,26 @@ uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t l
 	//2. until length is 0
 	while(len > 0)
 	{
-		//3. check tx buffer is empty by reading status in SR reg
-		while(DAL_SPI_FlagStatus(pSPI_Handle , SPI_SR_TXE) == DAL_OK)
+	//3. check tx buffer is empty by reading status in SR reg
+		if(DAL_SPI_FlagStatus(pSPI_Handle , SPI_SR_TXE) == DAL_OK)
 		{
 			//4. load data into dr respective of dff
-			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3))
-			{
+//			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3))
+//			{
 				//5. load data
 				pSPI_Handle->pSPIx->SPI_DR = *pdata;
 				//6. increment data pointer
 				pdata++;
 				//7. decrement length
 				len--;
-			}
-			else
-			{
-				pSPI_Handle->pSPIx->SPI_DR = *((uint16_t*)pdata);
-				(uint16_t*)pdata++;
-				len--;
-				len--;
-			}
+//			}
+//			else
+//			{
+//				pSPI_Handle->pSPIx->SPI_DR = *((uint16_t*)pdata);
+//				(uint16_t*)pdata++;
+//				len--;
+//				len--;
+//			}
 		}
 	}
 	return DAL_OK;
@@ -206,7 +206,10 @@ uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t l
  */
 uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 {
-	if(pSPI_Handle->pSPIx->SPI_SR & Flagname)
+	uint32_t reg_value = pSPI_Handle->pSPIx->SPI_SR;  // Read full register
+	// Check if bit n is set (1) or cleared (0)
+	uint8_t bit_value = (reg_value >> Flagname) & 0x1;
+	if(bit_value)
 	{
 		return DAL_OK;
 	}
