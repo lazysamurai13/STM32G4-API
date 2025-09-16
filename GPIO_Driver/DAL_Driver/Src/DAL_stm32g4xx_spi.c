@@ -27,8 +27,10 @@ void DAL_SPI_Peri_CLK(SPI_Regdef_t *pSPIx, uint8_t EnOrDi)
 		}
 		else if(pSPIx == SPI2)
 		{
-//			SPI2_PCLK_EN();
-			RCC->APB1ENR1_reg |= (1<<18);
+			SPI2_PCLK_EN();
+			volatile uint32_t* temp_addr = (0x40021000 + 0x58);
+			*temp_addr |= (1<<14);
+//			RCC->APB1ENR1_reg |= (1<<18);
 		}
 		else if(pSPIx == SPI3)
 		{
@@ -68,13 +70,11 @@ void DAL_SPI_Denit(SPI_Regdef_t *pSPIx)
  */
 void DAL_SPI_PeripheralEnDi(SPI_Handle_t *pSPI_Handle ,uint8_t ENorDi)
 {
-	if(ENorDi == DAL_ENABLE)
-	{
+	if(ENorDi == DAL_ENABLE){
 	//Enable SPI Peripheral
 		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_ENABLE << SPI_CR1_SPE);
 	}
-	else
-	{
+	else{
 	//Disable SPI Peripheral
 		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_ENABLE << SPI_CR1_SPE);
 	}
@@ -127,7 +127,6 @@ void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 	temp |= (pSPI_Handle->spi_config_t.SPI_SSM << SPI_CR1_SSM);
 	//8. assign temp value to reg
 	pSPI_Handle->pSPIx->SPI_CR1 = temp;
-	pSPI_Handle->pSPIx->SPI_CR1 = 0xFFFF;
 }
 
 /**
@@ -207,18 +206,10 @@ uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t l
  */
 uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 {
-//	if(Flagname == SPI_SR_BSY)
-//	{
 	if(pSPI_Handle->pSPIx->SPI_SR & Flagname)
 	{
 		return DAL_OK;
 	}
-	else
-	{
-		return DAL_BUSY;
-	}
-//	}
-//	else if(Flagname == SPI_SR_BSY)
 	return DAL_ERROR;
 }
 /**

@@ -27,6 +27,7 @@ void DAL_GPIO_Peri_CLK(GPIO_Regdef_t *pGPIOx, uint8_t EnOrDi)
 		if(pGPIOx == GPIOA)
 		{
 			GPIOA_PCLK_EN();
+
 		}
 		else if(pGPIOx == GPIOB)
 		{
