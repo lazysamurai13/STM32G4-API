@@ -2,7 +2,7 @@
  * DAL_stm32g4xx_spi.c
  *
  *  Created on: Aug 16, 2025
- *      Author: dawoo
+ *      Author: dawood
  */
 
 #include "DAL_stm32g4xx_spi.h"
@@ -142,11 +142,11 @@ void DAL_SPI_SSI(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 {
 	if(Flagname == DAL_ENABLE)
 	{
-		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_DI << SPI_CR1_SSI);
+		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_EN << SPI_CR1_SSI);
 	}
 	else
 	{
-		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_EN << SPI_CR1_SSI);
+		pSPI_Handle->pSPIx->SPI_CR1 |= (SPI_SSI_DI << SPI_CR1_SSI);
 	}
 }
 /**

@@ -51,11 +51,10 @@ void DAL_Interrupt_Congif(GPIO_handle_t *pGPIO_Handle);
  */
 #define DAL_GPIO_MODE_INPUT		0
 #define DAL_GPIO_MODE_OUTPUT	1
-#define DAL_GPIO_MODE_ANALOG	2
-#define DAL_GPIO_MODE_ALT_FN	3
-#define DAL_GPIO_MODE_IT_RE		4
-#define DAL_GPIO_MODE_IT_FE		5
-#define DAL_GPIO_MODE_IT_RE_FE	6
+#define DAL_GPIO_MODE_ALT_FN	2
+#define DAL_GPIO_MODE_IT_RE		3
+#define DAL_GPIO_MODE_IT_FE		4
+#define DAL_GPIO_MODE_IT_RE_FE	5
 /**
  * GPIO OP type
  */

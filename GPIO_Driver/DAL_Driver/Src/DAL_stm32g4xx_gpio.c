@@ -27,11 +27,12 @@ void DAL_GPIO_Peri_CLK(GPIO_Regdef_t *pGPIOx, uint8_t EnOrDi)
 		if(pGPIOx == GPIOA)
 		{
 			GPIOA_PCLK_EN();
-
 		}
 		else if(pGPIOx == GPIOB)
 		{
-			GPIOB_PCLK_EN();
+			volatile uint32_t* temp_gpio_addr = 0x4002104c;
+			*temp_gpio_addr |= (1 << 1);
+//			GPIOB_PCLK_EN();
 		}
 		else if(pGPIOx == GPIOC)
 		{
@@ -158,13 +159,13 @@ void DAL_GPIO_Init(GPIO_handle_t *pGPIO_Handle)
 	//6. Set Alt fn if needed
 	if(pGPIO_Handle->pGPIO_Pinconfig.Pin_mode == DAL_GPIO_MODE_ALT_FN)
 	{
-		uint8_t temp2 = pGPIO_Handle->pGPIO_Pinconfig.Pin_Alt_fn % 8;
-		if(temp2 > 1)
+		uint32_t temp2 = pGPIO_Handle->pGPIO_Pinconfig.Pin_number % 8;
+		if(temp2 < 1)
 		{
 			temp = 0xF << (4 * temp2);
 			pGPIO_Handle->pGPIOx->AFRL_reg &= ~temp;
 			temp=0;
-			temp = pGPIO_Handle->pGPIO_Pinconfig.Pin_speed << (4 * temp2);
+			temp = pGPIO_Handle->pGPIO_Pinconfig.Pin_Alt_fn << (4 * temp2);
 			pGPIO_Handle->pGPIOx->AFRL_reg |=temp;
 			temp=0;
 		}
@@ -173,7 +174,7 @@ void DAL_GPIO_Init(GPIO_handle_t *pGPIO_Handle)
 			temp = 0xF << (4 * temp2);
 			pGPIO_Handle->pGPIOx->AFRH_reg &= ~temp;
 			temp=0;
-			temp = pGPIO_Handle->pGPIO_Pinconfig.Pin_speed << (4 * temp2);
+			temp = pGPIO_Handle->pGPIO_Pinconfig.Pin_Alt_fn << (4 * temp2);
 			pGPIO_Handle->pGPIOx->AFRH_reg |=temp;
 			temp=0;
 		}

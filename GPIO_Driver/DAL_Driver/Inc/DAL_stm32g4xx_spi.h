@@ -76,6 +76,7 @@ typedef struct
 #define SPI_TX_Flag 0
 #define SPI_RX_Flag 1
 
+void DAL_SPI_SSI(SPI_Handle_t *pSPI_Handle , uint8_t Flagname);
 void DAL_SPI_Peri_CLK(SPI_Regdef_t *pSPIx, uint8_t EnOrDi);
 uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname);
 void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle);
