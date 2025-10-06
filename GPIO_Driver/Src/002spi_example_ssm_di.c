@@ -16,6 +16,9 @@
  * mosi - PA11
  * nss  - PB12
  */
+
+void delay(uint32_t time_ms);
+
 void SPI_GPIO_Init(void)
 {
 	GPIO_handle_t spi_pins;
@@ -63,14 +66,15 @@ int main(void)
 	//2. Init SPI
 	DAL_SPI_Init(&spi2);
 	//3. Init SSI -  no need for hardware nss
-	DAL_SPI_SSI(&spi2, DAL_DISABLE);
+//	DAL_SPI_SSI(&spi2, DAL_ENABLE);
   	//4. Enable SPI
 	DAL_SPI_PeripheralEnDi(&spi2 , DAL_ENABLE);
+//	delay(500);
 	//5. Send data
-	while(1)
-	{
+//	while(1)
+//	{
 		DAL_SPI_SendData(&spi2 , (uint8_t*)&Txbuffer, strlen(Txbuffer));
-	}
+//	}
 	//5. Check SPI BSY Flag for spi completion
 	while (DAL_SPI_FlagStatus(&spi2 , SPI_SR_BSY) == DAL_BUSY);
 	//7. Disable SPI
@@ -78,4 +82,9 @@ int main(void)
 
 	while(1);
 	return 0;
+}
+
+void delay(uint32_t time_ms)
+{
+	for(uint32_t i=0; i < time_ms ; i++);
 }

@@ -58,8 +58,8 @@ void DAL_Interrupt_Congif(GPIO_handle_t *pGPIO_Handle);
 /**
  * GPIO OP type
  */
-#define DAL_GPIO_OP_MODE_OD     0
-#define DAL_GPIO_OP_MODE_PP     1
+#define DAL_GPIO_OP_MODE_PP    	0
+#define DAL_GPIO_OP_MODE_OD    	1
 /**
  * GPIO PuPd
  */

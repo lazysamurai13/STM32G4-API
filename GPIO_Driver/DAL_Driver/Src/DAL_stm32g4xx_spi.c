@@ -125,6 +125,11 @@ void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 	temp |= (pSPI_Handle->spi_config_t.SPI_CPHA << SPI_CR1_CPHA);
 	//7. Set SPI SSM
 	temp |= (pSPI_Handle->spi_config_t.SPI_SSM << SPI_CR1_SSM);
+	if(pSPI_Handle->spi_config_t.SPI_SSM == SPI_SSM_DI) // hardware nss management
+	{
+		//enable ssoe
+		pSPI_Handle->pSPIx->SPI_CR2 |= (1 << SPI_CR2_SSOE);
+	}
 	//8. assign temp value to reg
 	pSPI_Handle->pSPIx->SPI_CR1 = temp;
 }
