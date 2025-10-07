@@ -199,6 +199,42 @@ uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t l
 	}
 	return DAL_OK;
 }
+
+uint8_t DAL_SPI_ReceiveData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len)
+{
+	//1. check wheather data is null or length is 0
+	if(len == 0)
+	{
+		return DAL_ERROR;
+	}
+	//2. until length is 0
+	while(len > 0)
+	{
+	//3. check tx buffer is empty by reading status in SR reg
+		if(DAL_SPI_FlagStatus(pSPI_Handle , SPI_SR_RXNE) == DAL_OK)
+		{
+			//4. load data into dr respective of dff
+//			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3))
+//			{
+				//5. load data
+				*pdata = pSPI_Handle->pSPIx->SPI_DR;
+				//6. increment data pointer
+				pdata++;
+				//7. decrement length
+				len--;
+//			}
+//			else
+//			{
+//				pSPI_Handle->pSPIx->SPI_DR = *((uint16_t*)pdata);
+//				(uint16_t*)pdata++;
+//				len--;
+//				len--;
+//			}
+		}
+	}
+	return DAL_OK;
+}
+
 /**
  * @fn uint8_t DAL_SPI_FlagStatus(SPI_Handle_t*, uint8_t)
  * @brief Check status of flag in SR reg
@@ -220,41 +256,54 @@ uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname)
 	}
 	return DAL_ERROR;
 }
-/**
- * @fn void DAL_SPI_ReceiveData(SPI_Handle_t*, uint8_t*, uint32_t)
- * @brief Receive data through SPI peripheral
- *
- * @pre
- * @post
- * @param pSPI_Handle
- * @param pdata
- * @param len
- */
-void DAL_SPI_ReceiveData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len)
+
+void DAL_SPI_ConfigIT(uint8_t IRQNumber, uint8_t EnOrDi)
 {
-	//1. until length is 0
-	while(len > 0)
+	if(EnOrDi == DAL_ENABLE)
 	{
-		//2. check rx buffer is not empty by reading status in SR reg
-		while(DAL_SPI_FlagStatus(pSPI_Handle , SPI_SR_RXNE) == DAL_OK)
+		if(IRQNumber <= 31)
 		{
-			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3)) // 8 bit dff
-			{
-				//3. load data into dr respective of dff
-				//4. load data
-				*pdata = pSPI_Handle->pSPIx->SPI_DR;
-				//5. increment data pointer
-				pdata++;
-				//6. decrement length
-				len--;
-			}
-			else // 16 bit dff
-			{
-				*((uint16_t*)pdata) = pSPI_Handle->pSPIx->SPI_DR;
-				(uint16_t*)pdata++;
-				len--;
-				len--;
-			}
+			//program ISER0 reg
+			*NVIC_ISER0_REG_ADDR |= (1 << IRQNumber);
 		}
+		else if(IRQNumber > 31 && IRQNumber < 64)
+		{
+			//program ISER1 reg
+			*NVIC_ISER1_REG_ADDR |= (1 << (IRQNumber % 32));
+		}
+		else if(IRQNumber >= 64 && IRQNumber < 96)
+		{
+			//program ISER2 reg
+			*NVIC_ISER2_REG_ADDR |= (1 << (IRQNumber % 64));
+		}
+	}
+	else
+	{
+		if(IRQNumber <= 31)
+		{
+			//program ICER0 reg
+			*NVIC_ICER0_REG_ADDR |= (1 << IRQNumber);
+		}
+		else if(IRQNumber > 31 && IRQNumber < 64)
+		{
+			//program ICER1 reg
+			*NVIC_ICER1_REG_ADDR |= (1 << (IRQNumber % 32));
+		}
+		else if(IRQNumber >= 64 && IRQNumber < 96)
+		{
+			//program ICER2 reg
+			*NVIC_ICER2_REG_ADDR |= (1 << (IRQNumber % 64));
+		}
+	}
+}
+
+void DAL_SPI_ConfigIRQPriority(uint8_t IRQNumber, uint32_t IRQPriority)
+{
+	if(IRQNumber < 240)
+	{
+		uint8_t iprx = IRQNumber / 4;
+		uint8_t iprx_section = IRQNumber % 4;
+		uint8_t shift_amount = (8 * iprx_section) + (8 - NO_PR_BITS_IMPLEMENTED);
+		*(NVIC_IPR_REG_ADDR + iprx) |= (IRQPriority << shift_amount);
 	}
 }

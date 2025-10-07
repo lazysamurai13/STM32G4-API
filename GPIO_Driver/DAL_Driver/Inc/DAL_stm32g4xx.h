@@ -21,11 +21,19 @@
  * @brief
  *
  */
-#define NVIC_ICTR_REG_ADDR 0xE000E004
-#define NVIC_ISER_REG_ADDR 0xE000E100
-#define NVIC_ICER_REG_ADDR 0xE000E180
-#define NVIC_IPR_REG_ADDR  0xE000E400
+#define NVIC_ICTR_REG_ADDR ((volatile uint32_t*)0xE000E004)
 
+#define NVIC_ISER0_REG_ADDR ((volatile uint32_t*)0xE000E100)
+#define NVIC_ISER1_REG_ADDR ((volatile uint32_t*)0xE000E104)
+#define NVIC_ISER2_REG_ADDR ((volatile uint32_t*)0xE000E108)
+
+#define NVIC_ICER0_REG_ADDR ((volatile uint32_t*)0xE000E180)
+#define NVIC_ICER1_REG_ADDR ((volatile uint32_t*)0xE000E184)
+#define NVIC_ICER2_REG_ADDR ((volatile uint32_t*)0xE000E188)
+
+#define NVIC_IPR_REG_ADDR  ((volatile uint32_t*)0xE000E400)
+
+#define NO_PR_BITS_IMPLEMENTED 4
 /**
  * Memory base address
  */

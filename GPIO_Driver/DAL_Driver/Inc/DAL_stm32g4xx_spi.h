@@ -82,5 +82,10 @@ uint8_t DAL_SPI_FlagStatus(SPI_Handle_t *pSPI_Handle , uint8_t Flagname);
 void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle);
 void DAL_SPI_PeripheralEnDi(SPI_Handle_t *pSPI_Handle ,uint8_t ENorDi);
 uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len);
+uint8_t DAL_SPI_ReceiveData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len);
+uint8_t DAL_SPI_SendDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len);
+void DAL_SPI_ConfigIT(uint8_t IRQNumber, uint8_t EnOrDi);
+void DAL_SPI_ConfigIRQPriority(uint8_t IRQNumber, uint32_t IRQPriority);
+void DAL_SPI_IRQHandling(SPI_Handle_t *pSPI_Handle);
 
 #endif /* INC_DAL_STM32G4XX_SPI_H_ */
