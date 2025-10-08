@@ -9,6 +9,7 @@
 #define INC_DAL_STM32G4XX_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * @def Processor specific registers

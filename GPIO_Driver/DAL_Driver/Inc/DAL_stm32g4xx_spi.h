@@ -71,6 +71,12 @@ typedef struct
 {
 	SPI_Regdef_t *pSPIx;
 	SPI_Config_t spi_config_t;
+	uint8_t *pTxBuffer; // to store the app. tx buffer address
+	uint8_t *pRxBuffer; // to store the app. rx buffer address
+	uint32_t TxLen; // to store tx len
+	uint32_t RxLen; // to store rx len
+	uint8_t TxState; // to store tx state
+	uint8_t RxState; // to store rx state
 }SPI_Handle_t;
 
 #define SPI_TX_Flag 0
@@ -87,5 +93,13 @@ uint8_t DAL_SPI_SendDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t
 void DAL_SPI_ConfigIT(uint8_t IRQNumber, uint8_t EnOrDi);
 void DAL_SPI_ConfigIRQPriority(uint8_t IRQNumber, uint32_t IRQPriority);
 void DAL_SPI_IRQHandling(SPI_Handle_t *pSPI_Handle);
+void DAL_SPI_CloseTransmission(pSPI_Handle);
+void DAL_SPI_CloseReception(pSPI_Handle);
+void SPI_OVR_InterruptHandle(pSPI_Handle);
+void SPI_RxNE_InterruptHandle(pSPI_Handle);
+void SPI_TxE_InterruptHandle(pSPI_Handle);
+
+
+__attribute__((weak)) void SPI_ApplicationEventCallback(SPI_Handle_t *pSPI_Handle , uint8_t AppEv);
 
 #endif /* INC_DAL_STM32G4XX_SPI_H_ */

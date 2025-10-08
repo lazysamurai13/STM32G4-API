@@ -301,9 +301,175 @@ void DAL_SPI_ConfigIRQPriority(uint8_t IRQNumber, uint32_t IRQPriority)
 {
 	if(IRQNumber < 240)
 	{
-		uint8_t iprx = IRQNumber / 4;
-		uint8_t iprx_section = IRQNumber % 4;
-		uint8_t shift_amount = (8 * iprx_section) + (8 - NO_PR_BITS_IMPLEMENTED);
-		*(NVIC_IPR_REG_ADDR + iprx) |= (IRQPriority << shift_amount);
+		uint8_t iprx = IRQNumber / 4; // each IPRx reg holds 4 IRQ priority fields
+		uint8_t iprx_section = IRQNumber % 4; // which section of the IPRx reg
+		//In ST the lower 4 bits are not implemented therefore we need to shift by (8 - NO_PR_BITS_IMPLEMENTED)
+		uint8_t shift_amount = (8 * iprx_section) + (8 - NO_PR_BITS_IMPLEMENTED); // each section is 8 bits wide
+		*(NVIC_IPR_REG_ADDR + (iprx*4)) |= (IRQPriority << shift_amount); // each IPRx reg is 4 bytes apart
 	}
+}
+
+uint8_t DAL_SPI_SendDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len)
+{
+	//1. check wheather data is null or length is 0
+	if(pdata == NULL || len == 0)
+	{
+		return DAL_ERROR;
+	}
+	//2. check if SPI is busy in transmission
+	if(pSPI_Handle->TxState != SPI_READY)
+	{
+		return DAL_BUSY_IN_TX;
+	}
+	//3. save pdata and len info in global variable inside handle
+	pSPI_Handle->pTxBuffer = pdata;
+	pSPI_Handle->TxLen = len;
+	//4. mark SPI state as busy in transmission so that no other code can take over
+	pSPI_Handle->TxState = SPI_BUSY_IN_TX;
+	//5. enable TXEIE control bit to get interrupt whenever TXE flag is set in SR reg
+	pSPI_Handle->pSPIx->SPI_CR2 |= (1 << SPI_CR2_TXEIE);
+	return DAL_OK;
+}
+
+uint8_t DAL_SPI_ReceiveDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t len)
+{
+	//1. check wheather data is null or length is 0
+	if(pdata == NULL || len == 0)
+	{
+		return DAL_ERROR;
+	}
+	//2. check if SPI is busy in reception
+	if(pSPI_Handle->RxState != SPI_READY)
+	{
+		return DAL_BUSY_IN_RX;
+	}
+	//3. save pdata and len info in global variable inside handle
+	pSPI_Handle->pRxBuffer = pdata;
+	pSPI_Handle->RxLen = len;
+	//4. mark SPI state as busy in reception so that no other code can take over
+	pSPI_Handle->RxState = SPI_BUSY_IN_RX;
+	//5. enable RXNEIE control bit to get interrupt whenever RXNE flag is set in SR reg
+	pSPI_Handle->pSPIx->SPI_CR2 |= (1 << SPI_CR2_RXNEIE);
+	return DAL_OK;
+}
+
+void DAL_SPI_IRQHandling(SPI_Handle_t *pSPI_Handle)
+{
+	uint8_t temp1, temp2;
+	//check for TXE
+	temp1 = pSPI_Handle->pSPIx->SPI_SR & (1 << SPI_SR_TXE);
+	temp2 = pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_TXEIE);
+	if(temp1 && temp2)
+	{
+		//handle TXE
+		SPI_TxE_InterruptHandle(pSPI_Handle);
+	}
+	//check for RXNE
+	temp1 = pSPI_Handle->pSPIx->SPI_SR & (1 << SPI_SR_RXNE);
+	temp2 = pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_RXNEIE);
+	if(temp1 && temp2)
+	{
+		//handle RXNE
+		SPI_RxNE_InterruptHandle(pSPI_Handle);
+	}
+	//check for OVR flag
+	temp1 = pSPI_Handle->pSPIx->SPI_SR & (1 << SPI_SR_OVR);
+	temp2 = pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_ERRIE);
+	if(temp1 && temp2)
+	{
+		//handle OVR error
+		SPI_OVR_InterruptHandle(pSPI_Handle);
+	}
+}
+
+void SPI_TxE_InterruptHandle(pSPI_Handle)
+{
+	//check the dff
+	if(pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_DS3))
+	{
+		//16 bit dff
+		//load data into dr
+		pSPI_Handle->pSPIx->SPI_DR = *((uint16_t*)pSPI_Handle->pTxBuffer);
+		//decrement len
+		pSPI_Handle->TxLen -= 2;
+		//increment buffer address
+		(uint16_t*)pSPI_Handle->pTxBuffer++;
+	}
+	else
+	{
+		//8 bit dff
+		pSPI_Handle->pSPIx->SPI_DR = *(pSPI_Handle->pTxBuffer);
+		pSPI_Handle->TxLen--;
+		pSPI_Handle->pTxBuffer++;
+	}
+	if(! pSPI_Handle->TxLen)
+	{
+		//tx is over
+		//close spi tx
+		DAL_SPI_CloseTransmission(pSPI_Handle);
+		//call application call back
+		SPI_ApplicationEventCallback(pSPI_Handle , SPI_EVENT_TX_CMPLT);
+	}
+}
+
+void SPI_RxNE_InterruptHandle(pSPI_Handle)
+{
+	//1.check dff
+	if(pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_DS3))
+	{
+		//16 bit dff
+		//load data from dr to rxbuffer
+		*((uint16_t*)pSPI_Handle->pRxBuffer) =  pSPI_Handle->pSPIx->SPI_DR;
+		//decrement len
+		pSPI_Handle->RxLen -= 2;
+		//increment buffer address
+		(uint16_t*)pSPI_Handle->pTxBuffer++;
+	}
+	else
+	{
+		//8 bit dff
+		*(pSPI_Handle->pRxBuffer) =  pSPI_Handle->pSPIx->SPI_DR;
+		pSPI_Handle->RxLen--;
+		//increment buffer address
+		(uint8_t*)pSPI_Handle->pTxBuffer++;
+	}
+	if(! pSPI_Handle->RxLen)
+	{
+		//rx is over
+		//close spi rx
+		DAL_SPI_CloseReception(pSPI_Handle);
+		//call application call back
+		SPI_ApplicationEventCallback(pSPI_Handle , SPI_EVENT_RX_CMPLT);
+	}
+}
+void SPI_OVR_InterruptHandle(pSPI_Handle)
+{
+	uint8_t temp;
+	//1. clear ovr flag
+	if(pSPI_Handle->TxState != SPI_BUSY_IN_TX) // if tx is not in progress
+	{
+		temp = pSPI_Handle->pSPIx->SPI_DR; // read dr
+		temp = pSPI_Handle->pSPIx->SPI_SR; // read sr
+	}
+	//2. inform application
+	SPI_ApplicationEventCallback(pSPI_Handle , SPI_EVENT_OVR_ERR);
+}
+void DAL_SPI_CloseReception(pSPI_Handle)
+{
+	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_RXNEIE); // disable txeie
+	pSPI_Handle->RxLen = 0;
+	pSPI_Handle->pRxBuffer = NULL;
+	pSPI_Handle->RxState = SPI_READY;
+}
+void DAL_SPI_CloseTransmission(pSPI_Handle)
+{
+	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_TXEIE); // disable txeie
+	pSPI_Handle->TxState = SPI_READY;
+	pSPI_Handle->pTxBuffer = NULL;
+	pSPI_Handle->TxLen = 0;
+}
+
+__attribute__((weak)) void SPI_ApplicationEventCallback(SPI_Handle_t *pSPI_Handle , uint8_t AppEv)
+{
+	//this is a weak implementation. the application may override this function
 }
