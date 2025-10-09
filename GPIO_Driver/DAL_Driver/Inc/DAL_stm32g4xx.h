@@ -281,6 +281,7 @@ typedef struct {
 #define DAL_OK         0
 #define DAL_ERROR 	   1
 #define DAL_BUSY 	   2
+#define DAL_BUSY_IN_TX
 
 /**
  * SPI Bit Definitions
@@ -296,7 +297,7 @@ typedef struct {
 #define SPI_CR1_SSI			8
 #define SPI_CR1_SSM			9
 #define SPI_CR1_RXONLY		10
-#define SPI_CR1_CRCL		11
+#define SPI_CR1_CRCL 		11
 #define SPI_CR1_CRCNEXT		12
 #define SPI_CR1_CRCEN		13
 #define SPI_CR1_BIDIOE		14
@@ -330,5 +331,13 @@ typedef struct {
 #define SPI_SR_FRVL1	0x10
 #define SPI_SR_FTLVL0	0x11
 #define SPI_SR_FTLVL1	0x12
+
+#define SPI_READY		0
+#define SPI_BUSY_IN_TX	1
+#define SPI_BUSY_IN_RX	2
+
+#define SPI_EVENT_TX_CMPLT 1
+#define SPI_EVENT_RX_CMPLT 1
+#define SPI_EVENT_OVR_ERR 1
 
 #endif /* INC_DAL_STM32G4XX_H_ */

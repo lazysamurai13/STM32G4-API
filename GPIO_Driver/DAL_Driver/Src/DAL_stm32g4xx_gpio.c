@@ -30,7 +30,7 @@ void DAL_GPIO_Peri_CLK(GPIO_Regdef_t *pGPIOx, uint8_t EnOrDi)
 		}
 		else if(pGPIOx == GPIOB)
 		{
-			volatile uint32_t* temp_gpio_addr = 0x4002104c;
+			volatile uint32_t* temp_gpio_addr = (uint32_t*)0x4002104c;
 			*temp_gpio_addr |= (1 << 1);
 //			GPIOB_PCLK_EN();
 		}

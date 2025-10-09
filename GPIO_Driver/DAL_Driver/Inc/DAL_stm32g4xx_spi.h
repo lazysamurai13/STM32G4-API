@@ -36,19 +36,19 @@
 #define SPI_CPHA0 0
 #define SPI_CPHA1 1
 
-#define SPI_DFF4	0
-#define SPI_DFF5	0x1
-#define SPI_DFF6	0x2
-#define SPI_DFF7 	0x3
-#define SPI_DFF8 	0x4
-#define SPI_DFF9 	0x5
-#define SPI_DFF10 	0x6
-#define SPI_DFF11	0x7
-#define SPI_DFF12	0x8
-#define SPI_DFF13	0x9
-#define SPI_DFF14	0x10
-#define SPI_DFF15	0x11
-#define SPI_DFF16	0x12
+#define SPI_DFF4	0x3
+#define SPI_DFF5	0x4
+#define SPI_DFF6	0x5
+#define SPI_DFF7 	0x6
+#define SPI_DFF8 	0x7
+#define SPI_DFF9 	0x8
+#define SPI_DFF10 	0x9
+#define SPI_DFF11	0x10
+#define SPI_DFF12	0x11
+#define SPI_DFF13	0x12
+#define SPI_DFF14	0x13
+#define SPI_DFF15	0x14
+#define SPI_DFF16	0x15
 
 #define SPI_ENABLE  1
 #define SPI_DISABLE 0
@@ -93,13 +93,11 @@ uint8_t DAL_SPI_SendDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t
 void DAL_SPI_ConfigIT(uint8_t IRQNumber, uint8_t EnOrDi);
 void DAL_SPI_ConfigIRQPriority(uint8_t IRQNumber, uint32_t IRQPriority);
 void DAL_SPI_IRQHandling(SPI_Handle_t *pSPI_Handle);
-void DAL_SPI_CloseTransmission(pSPI_Handle);
-void DAL_SPI_CloseReception(pSPI_Handle);
-void SPI_OVR_InterruptHandle(pSPI_Handle);
-void SPI_RxNE_InterruptHandle(pSPI_Handle);
-void SPI_TxE_InterruptHandle(pSPI_Handle);
-
-
-__attribute__((weak)) void SPI_ApplicationEventCallback(SPI_Handle_t *pSPI_Handle , uint8_t AppEv);
+void DAL_SPI_CloseTransmission(SPI_Handle_t *pSPI_Handle);
+void DAL_SPI_CloseReception(SPI_Handle_t *pSPI_Handle);
+void SPI_OVR_InterruptHandle(SPI_Handle_t *pSPI_Handle);
+void SPI_RxNE_InterruptHandle(SPI_Handle_t *pSPI_Handle);
+void SPI_TxE_InterruptHandle(SPI_Handle_t *pSPI_Handle);
+void SPI_ApplicationEventCallback(SPI_Handle_t *pSPI_Handle , uint8_t AppEv);
 
 #endif /* INC_DAL_STM32G4XX_SPI_H_ */

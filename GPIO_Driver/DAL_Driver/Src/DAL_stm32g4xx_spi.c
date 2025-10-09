@@ -28,8 +28,9 @@ void DAL_SPI_Peri_CLK(SPI_Regdef_t *pSPIx, uint8_t EnOrDi)
 		else if(pSPIx == SPI2)
 		{
 			SPI2_PCLK_EN();
-			volatile uint32_t* temp_addr = (0x40021000 + 0x58);
+			volatile uint32_t* temp_addr = (uint32_t*)(0x40021000 + 0x58);
 			*temp_addr |= (1<<14);
+			(void)temp_addr;
 //			RCC->APB1ENR1_reg |= (1<<18);
 		}
 		else if(pSPIx == SPI3)
@@ -118,13 +119,15 @@ void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS0); //clear bit
 	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS1); //clear bit
 	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS2); //clear bit
-	pSPI_Handle->pSPIx->SPI_CR2 |= (pSPI_Handle->spi_config_t.SPI_BusConfig << SPI_CR2_DS0);
+	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS3); //clear bit
+	pSPI_Handle->pSPIx->SPI_CR2 |= (pSPI_Handle->spi_config_t.SPI_DFF << SPI_CR2_DS0);
 	//5. Set SPI CPOL
 	temp |= (pSPI_Handle->spi_config_t.SPI_CPOL << SPI_CR1_CPOL);
 	//6. Set SPI CPHA
 	temp |= (pSPI_Handle->spi_config_t.SPI_CPHA << SPI_CR1_CPHA);
 	//7. Set SPI SSM
 	temp |= (pSPI_Handle->spi_config_t.SPI_SSM << SPI_CR1_SSM);
+	temp |= (1 << SPI_CR1_DFF);// 8 bit dff
 	if(pSPI_Handle->spi_config_t.SPI_SSM == SPI_SSM_DI) // hardware nss management
 	{
 		//enable ssoe
@@ -319,7 +322,7 @@ uint8_t DAL_SPI_SendDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t
 	//2. check if SPI is busy in transmission
 	if(pSPI_Handle->TxState != SPI_READY)
 	{
-		return DAL_BUSY_IN_TX;
+		return DAL_BUSY;
 	}
 	//3. save pdata and len info in global variable inside handle
 	pSPI_Handle->pTxBuffer = pdata;
@@ -341,7 +344,7 @@ uint8_t DAL_SPI_ReceiveDataIT(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint3
 	//2. check if SPI is busy in reception
 	if(pSPI_Handle->RxState != SPI_READY)
 	{
-		return DAL_BUSY_IN_RX;
+		return DAL_BUSY;
 	}
 	//3. save pdata and len info in global variable inside handle
 	pSPI_Handle->pRxBuffer = pdata;
@@ -382,26 +385,26 @@ void DAL_SPI_IRQHandling(SPI_Handle_t *pSPI_Handle)
 	}
 }
 
-void SPI_TxE_InterruptHandle(pSPI_Handle)
+void SPI_TxE_InterruptHandle(SPI_Handle_t *pSPI_Handle)
 {
 	//check the dff
-	if(pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_DS3))
-	{
-		//16 bit dff
-		//load data into dr
-		pSPI_Handle->pSPIx->SPI_DR = *((uint16_t*)pSPI_Handle->pTxBuffer);
-		//decrement len
-		pSPI_Handle->TxLen -= 2;
-		//increment buffer address
-		(uint16_t*)pSPI_Handle->pTxBuffer++;
-	}
-	else
-	{
+//	if(pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_DS3))
+//	{
+//		//16 bit dff
+//		//load data into dr
+//		pSPI_Handle->pSPIx->SPI_DR = *((uint16_t*)pSPI_Handle->pTxBuffer);
+//		//decrement len
+//		pSPI_Handle->TxLen -= 2;
+//		//increment buffer address
+//		(uint16_t*)pSPI_Handle->pTxBuffer++;
+//	}
+//	else
+//	{
 		//8 bit dff
 		pSPI_Handle->pSPIx->SPI_DR = *(pSPI_Handle->pTxBuffer);
 		pSPI_Handle->TxLen--;
 		pSPI_Handle->pTxBuffer++;
-	}
+//	}
 	if(! pSPI_Handle->TxLen)
 	{
 		//tx is over
@@ -412,7 +415,7 @@ void SPI_TxE_InterruptHandle(pSPI_Handle)
 	}
 }
 
-void SPI_RxNE_InterruptHandle(pSPI_Handle)
+void SPI_RxNE_InterruptHandle(SPI_Handle_t *pSPI_Handle)
 {
 	//1.check dff
 	if(pSPI_Handle->pSPIx->SPI_CR2 & (1 << SPI_CR2_DS3))
@@ -442,7 +445,7 @@ void SPI_RxNE_InterruptHandle(pSPI_Handle)
 		SPI_ApplicationEventCallback(pSPI_Handle , SPI_EVENT_RX_CMPLT);
 	}
 }
-void SPI_OVR_InterruptHandle(pSPI_Handle)
+void SPI_OVR_InterruptHandle(SPI_Handle_t *pSPI_Handle)
 {
 	uint8_t temp;
 	//1. clear ovr flag
@@ -451,17 +454,18 @@ void SPI_OVR_InterruptHandle(pSPI_Handle)
 		temp = pSPI_Handle->pSPIx->SPI_DR; // read dr
 		temp = pSPI_Handle->pSPIx->SPI_SR; // read sr
 	}
+	(void)temp; // to avoid warning
 	//2. inform application
 	SPI_ApplicationEventCallback(pSPI_Handle , SPI_EVENT_OVR_ERR);
 }
-void DAL_SPI_CloseReception(pSPI_Handle)
+void DAL_SPI_CloseReception(SPI_Handle_t *pSPI_Handle)
 {
 	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_RXNEIE); // disable txeie
 	pSPI_Handle->RxLen = 0;
 	pSPI_Handle->pRxBuffer = NULL;
 	pSPI_Handle->RxState = SPI_READY;
 }
-void DAL_SPI_CloseTransmission(pSPI_Handle)
+void DAL_SPI_CloseTransmission(SPI_Handle_t *pSPI_Handle)
 {
 	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_TXEIE); // disable txeie
 	pSPI_Handle->TxState = SPI_READY;
