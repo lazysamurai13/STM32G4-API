@@ -116,18 +116,19 @@ void DAL_SPI_Init(SPI_Handle_t *pSPI_Handle)
 		temp |= (1 << SPI_CR1_BIDIOE); // tx only
 	}
 	//4. Set SPI DFF
-	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS0); //clear bit
-	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS1); //clear bit
-	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS2); //clear bit
-	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS3); //clear bit
-	pSPI_Handle->pSPIx->SPI_CR2 |= (pSPI_Handle->spi_config_t.SPI_DFF << SPI_CR2_DS0);
+	pSPI_Handle->pSPIx->SPI_CR2 &= ~(0xF << 8);
+//	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS0); //clear bit
+//	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS1); //clear bit
+//	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS2); //clear bit
+//	pSPI_Handle->pSPIx->SPI_CR2 &= ~(1 << SPI_CR2_DS3); //clear bit
+	pSPI_Handle->pSPIx->SPI_CR2 |= (7 << 8);
+//	pSPI_Handle->pSPIx->SPI_CR2 |= (pSPI_Handle->spi_config_t.SPI_DFF << SPI_CR2_DS0);
 	//5. Set SPI CPOL
 	temp |= (pSPI_Handle->spi_config_t.SPI_CPOL << SPI_CR1_CPOL);
 	//6. Set SPI CPHA
 	temp |= (pSPI_Handle->spi_config_t.SPI_CPHA << SPI_CR1_CPHA);
 	//7. Set SPI SSM
 	temp |= (pSPI_Handle->spi_config_t.SPI_SSM << SPI_CR1_SSM);
-	temp |= (1 << SPI_CR1_DFF);// 8 bit dff
 	if(pSPI_Handle->spi_config_t.SPI_SSM == SPI_SSM_DI) // hardware nss management
 	{
 		//enable ssoe
@@ -185,7 +186,7 @@ uint8_t DAL_SPI_SendData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_t l
 //			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3))
 //			{
 				//5. load data
-				pSPI_Handle->pSPIx->SPI_DR = *pdata;
+			*((uint8_t *)&pSPI_Handle->pSPIx->SPI_DR) = *pdata;
 				//6. increment data pointer
 				pdata++;
 				//7. decrement length
@@ -220,7 +221,7 @@ uint8_t DAL_SPI_ReceiveData(SPI_Handle_t *pSPI_Handle , uint8_t* pdata , uint32_
 //			if(pSPI_Handle->pSPIx->SPI_CR2 &=  (1 << SPI_CR2_DS3))
 //			{
 				//5. load data
-				*pdata = pSPI_Handle->pSPIx->SPI_DR;
+				*pdata = *((uint8_t *)&pSPI_Handle->pSPIx->SPI_DR);
 				//6. increment data pointer
 				pdata++;
 				//7. decrement length
@@ -401,7 +402,8 @@ void SPI_TxE_InterruptHandle(SPI_Handle_t *pSPI_Handle)
 //	else
 //	{
 		//8 bit dff
-		pSPI_Handle->pSPIx->SPI_DR = *(pSPI_Handle->pTxBuffer);
+//		pSPI_Handle->pSPIx->SPI_DR = *((uint8_t*)pSPI_Handle->pTxBuffer);
+		*((uint8_t *)&pSPI_Handle->pSPIx->SPI_DR) = *(pSPI_Handle->pTxBuffer);
 		pSPI_Handle->TxLen--;
 		pSPI_Handle->pTxBuffer++;
 //	}
@@ -431,7 +433,7 @@ void SPI_RxNE_InterruptHandle(SPI_Handle_t *pSPI_Handle)
 	else
 	{
 		//8 bit dff
-		*(pSPI_Handle->pRxBuffer) =  pSPI_Handle->pSPIx->SPI_DR;
+		*(pSPI_Handle->pRxBuffer) =  *((uint8_t *)&pSPI_Handle->pSPIx->SPI_DR);
 		pSPI_Handle->RxLen--;
 		//increment buffer address
 		(uint8_t*)pSPI_Handle->pTxBuffer++;
