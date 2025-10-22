@@ -15,6 +15,7 @@ typedef struct{
 	uint8_t i2c_ack;
 	uint8_t i2c_fm;
 	uint8_t i2c_slave_addr;
+	uint8_t i2c_slave_addr_mode;
 }I2C_Config_t;
 
 typedef struct{
@@ -31,12 +32,15 @@ typedef struct{
 #define I2C_ACK_EN 1
 #define I2C_ACK_DI 0
 
-#define I2C_SPEED_SM   100000
-#define I2C_SPEED_FM_2 200000
-#define I2C_SPEED_FM_4 400000
+#define I2C_MODE_STANDARD  0
+#define I2C_MODE_FAST      1
+#define I2C_MODE_FAST_PLUS 2
 
 #define I2C_FM_DUTY_2 	 0
 #define I2C_FM_DUTY_16_9 1
+
+#define I2C_SLAVE_7BIT  0
+#define I2C_SLAVE_10BIT 0
 
 #define I2C_ENABLE  1
 #define I2C_DISABLE 0

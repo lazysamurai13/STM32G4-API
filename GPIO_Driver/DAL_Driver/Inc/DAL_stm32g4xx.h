@@ -196,8 +196,8 @@ typedef struct
 	volatile uint32_t SYSCFG_EXTICR4;
 	volatile uint32_t SYSCFG_SCSR;
 	volatile uint32_t SYSCFG_CFGR2;
-	volatile uint32_t SYSCFG_SWPR;
-	volatile uint32_t SYSCFG_SKR;
+	volatile uint32_t SYSCONFIG_SWPR;
+	volatile uint32_t SYSCONFIG_SKR;
 }SYSCONFIG_Regdef_t;
 
 #define SYSCONFIG ((SYSCONFIG_Regdef_t*)DAL_SYSCONFIG_BASEADDR)
@@ -247,21 +247,36 @@ typedef struct {
 	uint32_t I2C_TXDR;
 }I2C_Regdef_t;
 
-#define I2C1 	(I2C_Regdef_t*(DAL_I2C1_BASEAADDR))
-#define I2C2	(I2C_Regdef_t*(DAL_I2C2_BASEAADDR))
-#define I2C3	(I2C_Regdef_t*(DAL_I2C3_BASEAADDR))
+/* Correct pointer cast macros */
+#undef I2C1
+#undef I2C2
+#undef I2C3
+#define I2C1	((I2C_Regdef_t*)DAL_I2C1_BASEAADDR)
+#define I2C2	((I2C_Regdef_t*)DAL_I2C2_BASEAADDR)
+#define I2C3	((I2C_Regdef_t*)DAL_I2C3_BASEAADDR)
 
-#define I2C1_PCLK_EN() (RCC->APB1ENR1_reg |= (1<<21))
-#define I2C2_PCLK_EN() (RCC->APB1ENR1_reg |= (1<<22))
-#define I2C3_PCLK_EN() (RCC->APB1ENR1_reg |= (1<<30))
+/* Ensure clock macros use unsigned shifts */
+#undef I2C1_PCLK_EN
+#undef I2C2_PCLK_EN
+#undef I2C3_PCLK_EN
+#undef I2C1_PCLK_DI
+#undef I2C2_PCLK_DI
+#undef I2C3_PCLK_DI
+#undef I2C1_PCLK_RESET
+#undef I2C2_PCLK_RESET
+#undef I2C3_PCLK_RESET
 
-#define I2C1_PCLK_DI() (RCC->APB1ENR1_reg &= ~(1<<21))
-#define I2C2_PCLK_DI() (RCC->APB1ENR1_reg &= ~(1<<22))
-#define I2C3_PCLK_DI() (RCC->APB1ENR1_reg &= ~(1<<30))
+#define I2C1_PCLK_EN() (RCC->APB1ENR1_reg |= (1U<<21))
+#define I2C2_PCLK_EN() (RCC->APB1ENR1_reg |= (1U<<22))
+#define I2C3_PCLK_EN() (RCC->APB1ENR1_reg |= (1U<<30))
 
-#define I2C1_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1<<21))
-#define I2C2_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1<<22))
-#define I2C3_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1<<30))
+#define I2C1_PCLK_DI() (RCC->APB1ENR1_reg &= ~(1U<<21))
+#define I2C2_PCLK_DI() (RCC->APB1ENR1_reg &= ~(1U<<22))
+#define I2C3_PCLK_DI() (RCC->APB1ENR1_reg &= ~(1U<<30))
+
+#define I2C1_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1U<<21))
+#define I2C2_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1U<<22))
+#define I2C3_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1U<<30))
 
 //bit definitons
 #define I2C_CR1_PE 	 0
@@ -299,7 +314,11 @@ typedef struct {
 #define I2C_CR2_RELOAD 24
 #define I2C_CR2_AUTOEND 25
 #define I2C_CR2_PECBYTE 26
-
+//OAR1 REG
+#define I2C_OAR1_OA1      0
+#define I2C_OAR1_OA1MODE  10
+#define I2C_OAR1_OA1EN    15
+//ISR REG
 #define I2C_ISR_TXE		0
 #define I2C_ISR_TXIS	1
 #define I2C_ISR_RXNE	2
@@ -320,9 +339,6 @@ typedef struct {
 
 
 #define I2C_PE 0
-#define I2C_PCLK_EN() (RCC->APB1ENR1_reg |= (1<<22))
-#define I2C_PCLK_EN() (RCC->APB1ENR1_reg |= (1<<22))
-#define I2C_PCLK_EN() (RCC->APB1ENR1_reg |= (1<<22))
 /**
  * GPIO CLK EN macro
  * GPIO CLK EN macro
