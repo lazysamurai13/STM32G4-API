@@ -338,6 +338,16 @@ typedef struct {
 #define I2C_ISR_ADDCODE 17
 
 
+#define I2C_ICR_ADDRCF 3
+#define I2C_ICR_NACKCF 4
+#define I2C_ICR_STOPCF 5
+#define I2C_ICR_BERRCF 8
+#define I2C_ICR_ARLOCF 9
+#define I2C_ICR_OVRCF 10
+#define I2C_ICR_PECCF 11
+#define I2C_ICR_TIMEOUTCF 12
+#define I2C_ICR_ALERTCF 13
+
 #define I2C_PE 0
 /**
  * GPIO CLK EN macro
