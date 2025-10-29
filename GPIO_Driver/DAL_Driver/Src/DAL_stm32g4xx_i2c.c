@@ -21,7 +21,9 @@ uint8_t DAL_I2C_PCLK(I2C_Handle_t* I2C_Handle, uint8_t EnorDi)
 		}
 		else if(I2C_Handle->pI2Cx == I2C2)
 		{
-			I2C2_PCLK_EN();
+			volatile uint32_t* ptemp = 0x40021058;
+			*ptemp |= (1 << 22);
+//			I2C2_PCLK_EN();
 		}
 		else if(I2C_Handle->pI2Cx == I2C3)
 		{
@@ -157,7 +159,7 @@ uint8_t DAL_I2C_Init(I2C_Handle_t* I2C_Handle)
 	return 0;
 }
 
-I2C_Status_t I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_address, uint8_t* data, uint32_t size)
+I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_address, uint8_t* data, uint32_t size)
 {
     volatile uint32_t timeout;
 

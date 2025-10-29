@@ -159,8 +159,8 @@ void DAL_GPIO_Init(GPIO_handle_t *pGPIO_Handle)
 	//6. Set Alt fn if needed
 	if(pGPIO_Handle->pGPIO_Pinconfig.Pin_mode == DAL_GPIO_MODE_ALT_FN)
 	{
-		uint32_t temp2 = pGPIO_Handle->pGPIO_Pinconfig.Pin_number % 8;
-		if(temp2 < 1)
+		uint32_t temp2 = (pGPIO_Handle->pGPIO_Pinconfig.Pin_number % 8);
+		if(pGPIO_Handle->pGPIO_Pinconfig.Pin_number < 8)
 		{
 			temp = 0xF << (4 * temp2);
 			pGPIO_Handle->pGPIOx->AFRL_reg &= ~temp;
