@@ -105,7 +105,8 @@ static uint32_t I2C_Calculate_TIMINGR(uint32_t i2c_clk_freq, uint8_t mode)
         case I2C_MODE_STANDARD:
             // Example value for 100 kHz (SCL: 7.7uS Low, 2.3uS High)
             // PRESC=1, SCLDEL=7, SDADEL=0, SCLH=7C, SCLL=0C -> 0x10707C0C
-            timingr_val = 0x00A03D53U;
+            timingr_val = 0x30420F13U;
+//            timingr_val = 0x00313F57U;
             break;
 
         case I2C_MODE_FAST:
@@ -122,7 +123,7 @@ static uint32_t I2C_Calculate_TIMINGR(uint32_t i2c_clk_freq, uint8_t mode)
 
         default:
             // Fallback to Standard Mode or return an error code
-            timingr_val = 0x00A03D53U;
+            timingr_val = 0x30420F13U;
             break;
     }
     return timingr_val;
@@ -179,9 +180,9 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
     // Set transfer direction to WRITE (0)
     I2C_Handle->pI2Cx->I2C_CR2 &= ~(1<< I2C_CR2_RD_WRN);
 
-#ifdef I2C_AUTOEND_MODE_En
     // Set number of bytes to transfer
     I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+#ifdef I2C_AUTOEND_MODE_En
 
     // Set AUTOEND mode: automatically send STOP after NBYTES
     I2C_Handle->pI2Cx->I2C_CR2 |= I2C_CR2_AUTOEND;
@@ -198,11 +199,11 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
         while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) != DAL_OK)
         {
             // Check for NACK (Not Acknowledge)
-            if (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_NACKF) != DAL_OK)
-            {
-                I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
-                return I2C_NACK_ERROR;
-            }
+        	if (DAL_I2C_CheckFlag(I2C_Handle, I2C_ISR_NACKF) == DAL_OK)
+        	{
+        	    I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
+				return I2C_NACK_ERROR;
+        	}
             if (--timeout == 0) return I2C_TIMEOUT_ERROR;
         }
 
@@ -235,7 +236,7 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
     while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_STOPF) != DAL_OK)
     {
         // 7. Check if any NACK occurred during transmission -- can be checked during transmission as well
-        if (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_NACKF) != DAL_OK)
+        if (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_NACKF) == DAL_OK)
         {
             I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
             return I2C_NACK_ERROR;

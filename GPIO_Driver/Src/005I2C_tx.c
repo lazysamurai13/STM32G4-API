@@ -19,7 +19,6 @@
 
 I2C_Handle_t i2c2;
 
-
 void I2C_GPIO_Init(void)
 {
 	GPIO_handle_t i2c_pins;
@@ -40,7 +39,6 @@ void I2C_GPIO_Init(void)
 int main(void)
 {
 	uint8_t Txbuffer[] = "Hello\0";
-
 	//1. Init GPIO pins
 	I2C_GPIO_Init();
 	//2. Init SPI
@@ -52,7 +50,7 @@ int main(void)
 	i2c2.i2c_config.i2c_speed = I2C_MODE_STANDARD;
 	DAL_I2C_Init(&i2c2);
 	//3. Send data
-	DAL_I2C_Master_Transmit(&i2c2, SLAVE_ADDR_I2C, Txbuffer, strlen((char*)Txbuffer));
+	DAL_I2C_Master_Transmit(&i2c2, SLAVE_ADDR_I2C, Txbuffer, 6);
 	while(1);
 	return 0;
 }
