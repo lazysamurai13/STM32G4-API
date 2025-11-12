@@ -21,8 +21,9 @@ uint8_t DAL_I2C_PCLK(I2C_Handle_t* I2C_Handle, uint8_t EnorDi)
 		}
 		else if(I2C_Handle->pI2Cx == I2C2)
 		{
-			volatile uint32_t* ptemp = 0x40021058;
+			volatile uint32_t *ptemp = (uint32_t *) 0x40021058U;
 			*ptemp |= (1 << 22);
+			(void)ptemp;
 //			I2C2_PCLK_EN();
 		}
 		else if(I2C_Handle->pI2Cx == I2C3)
@@ -129,9 +130,10 @@ static uint32_t I2C_Calculate_TIMINGR(uint32_t i2c_clk_freq, uint8_t mode)
     return timingr_val;
 }
 
-uint8_t DAL_I2C_CheckFlag(I2C_Handle_t* I2C_Handle , uint8_t Flagname)
+uint8_t DAL_I2C_CheckFlag(I2C_Handle_t* I2C_Handle , uint32_t Flagname)
 {
-	if(I2C_Handle->pI2Cx->I2C_ISR & Flagname)
+	uint32_t mask = (1U << Flagname);
+	if(I2C_Handle->pI2Cx->I2C_ISR & mask)
 	{
 		return DAL_OK;
 	}
@@ -166,9 +168,12 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
 
     // --- 1. Wait until bus is not busy ---
     timeout = I2C_TIMEOUT;
-    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) == DAL_OK)
     {
-    	if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+    	if (--timeout == 0)
+    		{
+    			return I2C_TIMEOUT_ERROR;
+    		}
     }
     // --- 2. Configure the transfer ---
     // Clear CR2 register
@@ -178,38 +183,75 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
     I2C_Handle->pI2Cx->I2C_CR2 |= (uint32_t)(slave_address << 1);
 
     // Set transfer direction to WRITE (0)
-    I2C_Handle->pI2Cx->I2C_CR2 &= ~(1<< I2C_CR2_RD_WRN);
+    I2C_Handle->pI2Cx->I2C_CR2 &= ~(1U << I2C_CR2_RD_WRN);
 
     // Set number of bytes to transfer
-    I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+    I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST); //clear NBYTES bits
+    I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST); //set NBYTES
 #ifdef I2C_AUTOEND_MODE_En
 
     // Set AUTOEND mode: automatically send STOP after NBYTES
     I2C_Handle->pI2Cx->I2C_CR2 |= I2C_CR2_AUTOEND;
 #endif
     // Generate START condition
-    I2C_Handle->pI2Cx->I2C_CR2 |= (1<<I2C_CR2_START);
+    I2C_Handle->pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_START);
 
     // --- 3. Transmit data bytes ---
-    for (uint32_t i = 0; i < size; i++)
+    if(size > 1) // for single byte transmission
     {
-        // Wait for Transmit Interrupt Status (TXIS) flag
-        // This means the transmit data register (TXDR) is empty
-        timeout = I2C_TIMEOUT;
-        while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) != DAL_OK)
+        for (uint32_t i = 0; i < size; i++)
         {
-            // Check for NACK (Not Acknowledge)
-        	if (DAL_I2C_CheckFlag(I2C_Handle, I2C_ISR_NACKF) == DAL_OK)
-        	{
-        	    I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
-				return I2C_NACK_ERROR;
-        	}
-            if (--timeout == 0) return I2C_TIMEOUT_ERROR;
-        }
+            // Wait for Transmit Interrupt Status (TXIS) flag
+            // This means the transmit data register (TXDR) is empty
+            timeout = I2C_TIMEOUT;
+            while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) != DAL_OK)
+            {
+                // Check for NACK (Not Acknowledge)
+            	if (DAL_I2C_CheckFlag(I2C_Handle, I2C_ISR_NACKF) == DAL_OK)
+            	{
+            	    I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
+    				return I2C_NACK_ERROR;
+            	}
+                if (--timeout == 0)
+                	{
+                		return I2C_TIMEOUT_ERROR;
+                	}
+            }
 
-        // Write data to TXDR
-        I2C_Handle->pI2Cx->I2C_TXDR = data[i];
+            // Write data to TXDR
+            I2C_Handle->pI2Cx->I2C_TXDR = data[i];
+        }
+		// --- 4. Wait for transfer complete (TC) flag ---
+		while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TC) != DAL_OK)
+		{
+			if (--timeout == 0)
+				{
+					return I2C_TIMEOUT_ERROR;
+				}
+		}
+
     }
+    else
+    {
+		// Wait for Transmit Interrupt Status (TXIS) flag
+		// This means the transmit data register (TXDR) is empty
+		timeout = I2C_TIMEOUT;
+		while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) != DAL_OK)
+		{
+            if (--timeout == 0)
+            {
+            	return I2C_TIMEOUT_ERROR;
+            }
+		}
+        // Write data to TXDR
+        I2C_Handle->pI2Cx->I2C_TXDR = data[0];
+		if (DAL_I2C_CheckFlag(I2C_Handle, I2C_ISR_NACKF) == DAL_OK)
+		{
+		    I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
+			return I2C_NACK_ERROR;
+		}
+    }
+
 #ifdef I2C_AUTOEND_MODE_En
     // --- 4. Wait for transfer to complete ---
     // With AUTOEND set, we just need to wait for the STOPF flag.
@@ -223,15 +265,11 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
         if (--timeout == 0) return I2C_TIMEOUT_ERROR;
     }
 #else
-    // --- 4. Wait for transfer complete (TC) flag ---
-    while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TC) != DAL_OK)
-    {
-        if (--timeout == 0) return I2C_TIMEOUT_ERROR;
-    }
 
     // --- 5. Generate STOP condition ---
-    I2C_Handle->pI2Cx->I2C_CR2 |= I2C_CR2_STOP;
+    I2C_Handle->pI2Cx->I2C_CR2 |= (1<< I2C_CR2_STOP);
 
+    timeout = I2C_TIMEOUT;
     //--- 6. Wait for STOP flag ---
     while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_STOPF) != DAL_OK)
     {
@@ -241,7 +279,10 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
             I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
             return I2C_NACK_ERROR;
         }
-        if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+        if (--timeout == 0)
+        	{
+        		return I2C_TIMEOUT_ERROR;
+        	}
     }
 #endif
 
@@ -250,55 +291,94 @@ I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_add
     return I2C_OK;
 }
 
-I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t I2C_Handle , uint8_t* pdata, uint32_t size_)
+I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t* I2C_Handle ,uint8_t slave_address, uint8_t* pdata, uint32_t size)
 {
     volatile uint32_t timeout;
 
     // --- 1. Wait until bus is not busy ---
     timeout = I2C_TIMEOUT;
-    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) == DAL_OK)
     {
-    	if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+    	if (--timeout == 0)
+		{
+			return I2C_TIMEOUT_ERROR;
+		}
     }
     // --- 2. Configure the transfer ---
     // Clear CR2 register
     I2C_Handle->pI2Cx->I2C_CR2 = 0;
-
+    // Clear all flags
+    I2C_Handle->pI2Cx->I2C_ICR = 0xFFFFFFFFU;
     // Set slave address (7-bit address)
     I2C_Handle->pI2Cx->I2C_CR2 |= (uint32_t)(slave_address << 1);
-
     // Set transfer direction to READ (1)
-    I2C_Handle->pI2Cx->I2C_CR2 |= 1<< I2C_CR2_RD_WRN;
-
+    I2C_Handle->pI2Cx->I2C_CR2 |= (1U << I2C_CR2_RD_WRN);
     // Set number of bytes to read
-    I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+//    I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST); //clear NBYTES bits
+//    I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST); //set NBYTES
+
+    I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST);
+    I2C_Handle->pI2Cx->I2C_CR2 |= ((size & 0xFFU) << I2C_CR2_NBYTEST);
+
 #ifdef I2C_AUTOEND_MODE_En
 
     // Set AUTOEND mode: automatically send STOP after NBYTES
     I2C_Handle->pI2Cx->I2C_CR2 |= I2C_CR2_AUTOEND;
 #endif
     // Generate START condition
-    I2C_Handle->pI2Cx->I2C_CR2 |= (1<<I2C_CR2_START);
+    I2C_Handle->pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_START);
 
-    // --- 3. Transmit data bytes ---
-    for (uint32_t i = 0; i < size; i++)
-    {
-        // Wait for Transmit Interrupt Status (TXIS) flag
-        // This means the transmit data register (TXDR) is empty
+    if(size == 1)
+	{
         timeout = I2C_TIMEOUT;
-        while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) != DAL_OK)
+        while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_RXNE) != DAL_OK)
         {
-            // Check for NACK (Not Acknowledge)
-        	if (DAL_I2C_CheckFlag(I2C_Handle, I2C_ISR_NACKF) == DAL_OK)
-        	{
-        	    I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
-				return I2C_NACK_ERROR;
-        	}
-            if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+            if (--timeout == 0)
+			{
+				return I2C_TIMEOUT_ERROR;
+			}
         }
+#ifndef I2C_AUTOEND_MODE_En
+        // --- 5. Generate STOP condition ---
+	   I2C_Handle->pI2Cx->I2C_CR2 |= (1U << I2C_CR2_STOP);
+        // Read data from RXDR
+        *pdata =  I2C_Handle->pI2Cx->I2C_RXDR;
+#endif
+	}
+    else
+    {
+		// --- 3. Read data bytes ---
+		for (uint32_t i = 0; i < size; i++)
+		{
+			// Wait for Ready Interrupt Status (RXNE) flag
+			// This means the transmit data register RXNE is not empty
+			timeout = I2C_TIMEOUT;
+			while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_RXNE) != DAL_OK)
+			{
+				// Check for NACK (Not Acknowledge)
+				if (DAL_I2C_CheckFlag(I2C_Handle, I2C_ISR_NACKF) == DAL_OK)
+				{
+					I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
+					return I2C_NACK_ERROR;
+				}
+				if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+			}
 
-        // Write data to TXDR
-        data[i] = I2C_Handle->pI2Cx->I2C_TXDR;
+			// Read data from RXDR
+			pdata[i] = I2C_Handle->pI2Cx->I2C_RXDR;
+		}
+#ifndef I2C_AUTOEND_MODE_En
+	    // --- 4. Wait for transfer complete (TC) flag ---
+	    while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TC) != DAL_OK)
+	    {
+	        if (--timeout == 0)
+	        	{
+	        		return I2C_TIMEOUT_ERROR;
+	        	}
+	    }
+	    // --- 5. Generate STOP condition ---
+	    I2C_Handle->pI2Cx->I2C_CR2 |= (1U <<I2C_CR2_STOP);
+#endif
     }
 #ifdef I2C_AUTOEND_MODE_En
     // --- 4. Wait for transfer to complete ---
@@ -313,14 +393,6 @@ I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t I2C_Handle , uint8_t* pdata, ui
         if (--timeout == 0) return I2C_TIMEOUT_ERROR;
     }
 #else
-    // --- 4. Wait for transfer complete (TC) flag ---
-    while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TC) != DAL_OK)
-    {
-        if (--timeout == 0) return I2C_TIMEOUT_ERROR;
-    }
-
-    // --- 5. Generate STOP condition ---
-    I2C_Handle->pI2Cx->I2C_CR2 |= I2C_CR2_STOP;
 
     //--- 6. Wait for STOP flag ---
     while (DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_STOPF) != DAL_OK)
@@ -331,29 +403,32 @@ I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t I2C_Handle , uint8_t* pdata, ui
             I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF; // Clear NACK flag
             return I2C_NACK_ERROR;
         }
-        if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+        if (--timeout == 0)
+        	{
+        		return I2C_TIMEOUT_ERROR;
+
+        	}
     }
 #endif
-
     // --- 8. Clear STOP flag ---
-    I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_STOPCF;
+    I2C_Handle->pI2Cx->I2C_ICR |= (1U <<I2C_ICR_STOPCF);
     return I2C_OK;
 }
 
-I2C_Status_t I2C_Master_Transmit_IT(I2C_Handle_t I2C_Handle , uint8_t* pdata , uint32_t size)
-{
-    volatile uint32_t timeout;
-
-    // --- 1. Wait until bus is not busy ---
-    timeout = I2C_TIMEOUT;
-    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
-    {
-    	if (--timeout == 0) return I2C_TIMEOUT_ERROR;
-    }
-    //2 ---- 2. copy data to structure ---
-
-    //3. ---- 3, enable IT ---
-
-    //4. ---
-	return I2C_OK;
-}
+//I2C_Status_t I2C_Master_Transmit_IT(I2C_Handle_t I2C_Handle , uint8_t* pdata , uint32_t size)
+//{
+//    volatile uint32_t timeout;
+//
+//    // --- 1. Wait until bus is not busy ---
+//    timeout = I2C_TIMEOUT;
+//    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+//    {
+//    	if (--timeout == 0) return I2C_TIMEOUT_ERROR;
+//    }
+//    //2 ---- 2. copy data to structure ---
+//
+//    //3. ---- 3, enable IT ---
+//
+//    //4. ---
+//	return I2C_OK;
+//}

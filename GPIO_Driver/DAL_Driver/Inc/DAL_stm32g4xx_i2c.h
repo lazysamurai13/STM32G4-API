@@ -39,7 +39,7 @@ typedef enum {
 } I2C_Status_t;
 
 // Define a reasonable timeout value for polling loops
-#define I2C_TIMEOUT 100000
+#define I2C_TIMEOUT 1000000U
 
 #define I2C_ACK_EN 1
 #define I2C_ACK_DI 0
@@ -79,6 +79,7 @@ void DAL_I2C_Config(I2C_Handle_t*);
 void DAL_I2C_Config_IT(uint8_t IRQNumber , uint8_t EnorDi);
 void DAL_I2C_Config_IT_Priority(uint8_t IRQNumber , uint8_t Priority);
 I2C_Status_t DAL_I2C_Master_Transmit(I2C_Handle_t* I2C_Handle, uint8_t slave_address, uint8_t* data, uint32_t size);
+I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t* I2C_Handle ,uint8_t slave_address, uint8_t* pdata, uint32_t size);
 uint8_t DAL_I2C_FlagStatus(I2C_Handle_t* , uint8_t FlagName);
-uint8_t DAL_I2C_CheckFlag(I2C_Handle_t* I2C_Handle , uint8_t Flagname);
+uint8_t DAL_I2C_CheckFlag(I2C_Handle_t* I2C_Handle , uint32_t Flagname);
 #endif /* INC_DAL_STM32G4XX_I2C_H_ */
