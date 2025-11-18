@@ -230,7 +230,6 @@ typedef struct {
 #define SPI2_RESET() do{ (RCC->APB1RSTR_reg |= (1<<14)); (RCC->APB1RSTR_reg &= ~(1<<14));}while(0)
 #define SPI3_RESET() do{ (RCC->APB1RSTR_reg |= (1<<15)); (RCC->APB1RSTR_reg &= ~(1<<15));}while(0)
 
-
 #define SPI_PCLK_EN()   (RCC->APB2ENR1_reg |= (1<<14))
 
 typedef struct {
@@ -279,39 +278,39 @@ typedef struct {
 #define I2C3_PCLK_RESET() (RCC->APB1RSTR1_reg |= (1U<<30))
 
 //bit definitons
-#define I2C_CR1_PE 	 0
-#define I2C_CR1_TXIE 1
-#define I2C_CR1_RXIE 2
-#define I2C_CR1_ADDRIE 3
-#define I2C_CR1_NACKIE 4
-#define I2C_CR1_STOPIE 5
-#define I2C_CR1_TCIE 6
-#define I2C_CR1_EERIE 7
-#define I2C_CR1_DNF1 8
-#define I2C_CR1_DNF2 9
-#define I2C_CR1_DNF3 10
-#define I2C_CR1_DNF4 11
-#define I2C_CR1_ANFOFF 12
-#define I2C_CR1_TXDMAEN 14
-#define I2C_CR1_RXDMAEN 15
-#define I2C_CR1_SBC 16
-#define I2C_CR1_NOSTRETCH 17
-#define I2C_CR1_WUPEN   18
-#define I2C_CR1_GCEN    19
-#define I2C_CR1_SMBHEN  20
-#define I2C_CR1_SMBDEN  21
-#define I2C_CR1_ALERTEN 22
-#define I2C_CR1_PECEN   23
+#define I2C_CR1_PE 			0
+#define I2C_CR1_TXIE 		1
+#define I2C_CR1_RXIE 		2
+#define I2C_CR1_ADDRIE 		3
+#define I2C_CR1_NACKIE 		4
+#define I2C_CR1_STOPIE 		5
+#define I2C_CR1_TCIE 		6
+#define I2C_CR1_EERIE 		7
+#define I2C_CR1_DNF1 		8
+#define I2C_CR1_DNF2 		9
+#define I2C_CR1_DNF3 		10
+#define I2C_CR1_DNF4 		11
+#define I2C_CR1_ANFOFF 		12
+#define I2C_CR1_TXDMAEN 	14
+#define I2C_CR1_RXDMAEN 	15
+#define I2C_CR1_SBC 		16
+#define I2C_CR1_NOSTRETCH 	17
+#define I2C_CR1_WUPEN   	18
+#define I2C_CR1_GCEN   		19
+#define I2C_CR1_SMBHEN  	20
+#define I2C_CR1_SMBDEN  	21
+#define I2C_CR1_ALERTEN 	22
+#define I2C_CR1_PECEN   	23
 
-#define I2C_CR2_SADD 0
-#define I2C_CR2_RD_WRN 10
-#define I2C_CR2_ADD10 11
+#define I2C_CR2_SADD 	0
+#define I2C_CR2_RD_WRN 	10
+#define I2C_CR2_ADD10 	11
 #define I2C_CR2_HEAD10R 12
-#define I2C_CR2_START 13
-#define I2C_CR2_STOP 14
-#define I2C_CR2_NACK 15
+#define I2C_CR2_START 	13
+#define I2C_CR2_STOP 	14
+#define I2C_CR2_NACK 	15
 #define I2C_CR2_NBYTEST 16
-#define I2C_CR2_RELOAD 24
+#define I2C_CR2_RELOAD 	24
 #define I2C_CR2_AUTOEND 25
 #define I2C_CR2_PECBYTE 26
 //OAR1 REG
@@ -338,17 +337,35 @@ typedef struct {
 #define I2C_ISR_ADDCODE 17
 
 
-#define I2C_ICR_ADDRCF 3
-#define I2C_ICR_NACKCF 4
-#define I2C_ICR_STOPCF 5
-#define I2C_ICR_BERRCF 8
-#define I2C_ICR_ARLOCF 9
-#define I2C_ICR_OVRCF 10
-#define I2C_ICR_PECCF 11
-#define I2C_ICR_TIMEOUTCF 12
-#define I2C_ICR_ALERTCF 13
+#define I2C_ICR_ADDRCF 		3
+#define I2C_ICR_NACKCF 		4
+#define I2C_ICR_STOPCF 		5
+#define I2C_ICR_BERRCF 		8
+#define I2C_ICR_ARLOCF 		9
+#define I2C_ICR_OVRCF 		10
+#define I2C_ICR_PECCF 		11
+#define I2C_ICR_TIMEOUTCF 	12
+#define I2C_ICR_ALERTCF 	13
 
 #define I2C_PE 0
+
+#define I2C_READY     	0
+#define I2C_BUSY_IN_TX 	1
+#define I2C_BUSY_IN_RX 	2
+
+// I2C application events
+#define I2C_EV_TX_CMPLT 	0
+#define I2C_EV_RX_CMPLT 	1
+#define I2C_EV_STOP     	2
+#define I2C_EV_TC	   		3
+#define I2C_EV_ADDR_MATCH 	4
+#define I2C_EV_NACK_ERR   	5
+// I2C application errors
+#define I2C_ERROR_BERR 		0 // Bus error
+#define I2C_ERROR_ARLO 		1 // Arbitration lost
+#define I2C_ERROR_OVR  		2 // Overrun/Underrun
+#define I2C_ERROR_TIMEOUT 	3 // Timeout error
+#define I2C_PECERR 			4 // PEC error
 /**
  * GPIO CLK EN macro
  * GPIO CLK EN macro

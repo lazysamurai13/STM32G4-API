@@ -404,10 +404,9 @@ I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t* I2C_Handle ,uint8_t slave_addr
             return I2C_NACK_ERROR;
         }
         if (--timeout == 0)
-        	{
-        		return I2C_TIMEOUT_ERROR;
-
-        	}
+		{
+			return I2C_TIMEOUT_ERROR;
+		}
     }
 #endif
     // --- 8. Clear STOP flag ---
@@ -415,20 +414,153 @@ I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t* I2C_Handle ,uint8_t slave_addr
     return I2C_OK;
 }
 
-//I2C_Status_t I2C_Master_Transmit_IT(I2C_Handle_t I2C_Handle , uint8_t* pdata , uint32_t size)
-//{
-//    volatile uint32_t timeout;
-//
-//    // --- 1. Wait until bus is not busy ---
-//    timeout = I2C_TIMEOUT;
-//    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
-//    {
-//    	if (--timeout == 0) return I2C_TIMEOUT_ERROR;
-//    }
-//    //2 ---- 2. copy data to structure ---
-//
-//    //3. ---- 3, enable IT ---
-//
-//    //4. ---
-//	return I2C_OK;
-//}
+I2C_Status_t I2C_Master_Transmit_IT(I2C_Handle_t I2C_Handle ,uint8_t slave_address, uint8_t* pdata , uint32_t size)
+{
+    volatile uint32_t timeout;
+    // --- 1. Wait until bus is not busy ---
+    timeout = I2C_TIMEOUT;
+    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+    {
+    	if (--timeout == 0)
+    	{
+    		return I2C_TIMEOUT_ERROR;
+    	}
+    }
+    //2 ---- 2. copy data to structure ---
+    I2C_Handle.TxLen = size;
+    I2C_Handle.pTxBuffer = pdata;
+    I2C_Handle.i2c_state = I2C_BUSY_IN_TX; // assign busy state
+    I2C_Handle.SlaveAddress = slave_address;
+    //3. ---- 3, enable IT ---
+    I2C_Handle.pI2Cx->I2C_CR1 |=(0x7F << 1); // enable TXEIE, TCIE, STOPIE, NACKIE, ERRIE,RXIE,ADDRIE
+    //4. ---
+	return I2C_OK;
+}
+
+I2C_Status_t I2C_Master_Receive_IT(I2C_Handle_t I2C_Handle ,uint8_t slave_address, uint8_t* pdata , uint32_t size)
+{
+	volatile uint32_t timeout;
+	// --- 1. Wait until bus is not busy ---
+	timeout = I2C_TIMEOUT;
+	while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+	{
+		if (--timeout == 0)
+		{
+			return I2C_TIMEOUT_ERROR;
+		}
+	}
+	//2 ---- 2. copy data to structure ---
+	I2C_Handle.RxLen   = size;
+	I2C_Handle.RxCount = size;
+	I2C_Handle.pRxBuffer = pdata;
+	I2C_Handle.i2c_state = I2C_BUSY_IN_RX; // assign busy state
+	I2C_Handle.SlaveAddress = slave_address;
+	//3. ---- 3, Enable IT ---
+	uint32_t temp_reg = 0;
+	// Configure CR2 register - slave address , read/write , number of bytes
+	temp_reg = 0;
+	temp_reg |= (uint32_t)(slave_address << 1);
+	temp_reg |= (1U << I2C_CR2_RD_WRN);
+	temp_reg |= (size & 0xFFU) << I2C_CR2_NBYTEST;
+	I2C_Handle.pI2Cx->I2C_CR2 = temp_reg;
+	// 3. Enable Interrupts
+	// We need RXIE (to get data), NACKIE (fail), STOPIE (complete), ERRIE (errors), ADDRIE (address matched)
+	// Do NOT enable TXIE here.
+	temp_reg |=(I2C_CR1_ERRIE | I2C_CR1_ADDRIE | I2C_CR1_TXIS | I2C_CR1_NACKIE | I2C_CR1_RXIE | I2C_CR1_STOPIE);
+	I2C_Handle.pI2Cx->I2C_CR1 |= temp_reg;
+	//4. --- 4,Start I2C communication by generating START condition
+	I2C_Handle.pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_START);
+	return I2C_OK;
+}
+
+void DAL_I2C_Handle_ADDR(I2C_Handle_t* I2C_Handle)
+{
+	//clear ADDR flag is done in IRQ handling function
+	I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_ADDRCF;
+	//check if master or slave mode
+
+}
+void I2C_EV_IRQHandling(I2C_Handle_t* I2C_Handle)
+{
+	uint32_t isr_reg = I2C_Handle->pI2Cx->I2C_ISR;
+	uint32_t cr1_reg = I2C_Handle->pI2Cx->I2C_CR1;
+	//1. Handle ADDR event - addrie is enabled and addrcf is triggerd
+	if(((isr_reg >> I2C_ISR_ADDR)&0x1) && ((cr1_reg >> I2C_CR1_ADDRIE)&0x1))
+	{
+		DAL_I2C_Handle_ADDR(I2C_Handle);
+	}
+	//2. Handle NACKF event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_NACKF) == DAL_OK)
+	{
+		//clear NACKF flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF;
+		//notify application
+		DAL_I2C_Handle_NACKF(I2C_Handle);
+		//notify application
+		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_STOP);
+	}
+	//3. Handle TXE event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_RXNE) == DAL_OK)
+	{
+		DAL_I2C_Handle_RXNE(I2C_Handle);
+	}
+	//3. Handle RXE event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) == DAL_OK)
+	{
+		DAL_I2C_Handle_TXIS(I2C_Handle);
+	}
+	//3. Handle STOPF event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_STOPF) == DAL_OK)
+	{
+		//clear STOPF flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_STOPCF;
+		//do needfull
+		DAL_I2C_Handle_STOPF(I2C_Handle);
+		//notify application
+		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_STOP);
+	}
+}
+
+void I2C_ERR_IRQHandling(I2C_Handle_t* I2C_Handle)
+{
+	//1. Handle BERR event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BERR) == DAL_OK)
+	{
+		//clear BERR flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_BERRCF;
+		//notify application
+		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_BERR);
+	}
+	//2. Handle CRC event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_PECERR) == DAL_OK)
+	{
+		//clear BERR flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_PECCF;
+		//notify application
+		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_PECERR);
+	}
+	//3. Handle ARLO event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_ARLO) == DAL_OK)
+	{
+		//clear ARLO flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_ARLOCF;
+		//notify application
+		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_ARLO);
+	}
+	//4. Handle OVR event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_OVR) == DAL_OK)
+	{
+		//clear OVR flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_OVRCF;
+		//notify application
+		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_OVR);
+	}
+	//5. Handle TIMEOUT event
+	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TIMEOUT) == DAL_OK)
+	{
+		//clear TIMEOUT flag
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_TIMEOUTCF;
+		//notify application
+		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_TIMEOUT);
+	}
+}

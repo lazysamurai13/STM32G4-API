@@ -10,6 +10,8 @@
 
 #include "DAL_stm32g4xx.h"
 
+#define DAL_CHECK_BIT(REG,MASK) (((REG) & (MASK)) == (MASK)) ? 1U : 0)
+#define DAL_READ_BIT(REG,BIT_POS,MASK) (((REG) >> (BIT)) & (MASK))
 typedef struct{
 	uint8_t i2c_speed;
 	uint8_t i2c_ack;
@@ -22,10 +24,13 @@ typedef struct{
 typedef struct{
 	I2C_Config_t i2c_config;
 	I2C_Regdef_t* pI2Cx;
-	uint8_t* TxBuffer;
-	uint8_t* RxBuffer;
+	uint8_t* pTxBuffer;
+	uint8_t* pRxBuffer;
+	uint32_t TxCount;
 	uint32_t TxLen;
 	uint32_t RxLen;
+	uint32_t RxCount;
+	uint8_t ErrorCode;
 	uint8_t  i2c_state;
 }I2C_Handle_t;
 
