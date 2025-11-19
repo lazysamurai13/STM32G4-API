@@ -10,6 +10,11 @@
 
 static void DAL_I2C_Configure_Slave_Addr(I2C_Handle_t* I2C_Handle);
 static uint32_t I2C_Calculate_TIMINGR(uint32_t i2c_clk_freq, uint8_t mode);
+static void DAL_I2C_ADDRIT_Handling(I2C_Handle_t* I2C_Handle, uint32_t isr_reg , uint32_t cr1_reg);
+static void DAL_I2C_TCR_Handling(I2C_Handle_t* I2C_Handle);
+static void DAL_I2C_TC_Handling(I2C_Handle_t* I2C_Handle);
+static void DAL_I2C_NACKF_Handling(I2C_Handle_t* I2C_Handle);
+static void DAL_I2C_STOPF_Handling(I2C_Handle_t* I2C_Handle);
 
 uint8_t DAL_I2C_PCLK(I2C_Handle_t* I2C_Handle, uint8_t EnorDi)
 {
@@ -72,7 +77,7 @@ void DAL_I2C_PeripheralEnorDi(I2C_Handle_t* I2C_Handle, uint8_t EnorDi)
 static void DAL_I2C_Configure_Slave_Addr(I2C_Handle_t* I2C_Handle)
 {
 	uint32_t temp = 0U;
-	uint32_t slave_addr = (I2C_Handle->i2c_config.i2c_slave_addr << 1U);
+	uint32_t slave_addr = (I2C_Handle->i2c_config.i2c_device_slave_addr << 1U);
 	if(slave_addr != 0U)
 	{
 		// Disable own addressing before reconfiguring
@@ -82,7 +87,7 @@ static void DAL_I2C_Configure_Slave_Addr(I2C_Handle_t* I2C_Handle)
 		//Configure 7-bit or 10-bit addressing for slave
 		if(I2C_Handle->i2c_config.i2c_slave_addr_mode == I2C_SLAVE_7BIT)
 		{
-			temp &= ~(1 << I2C_OAR1_OA1MODE);//7 bit addressing in slave mode
+			temp &= ~(1U << I2C_OAR1_OA1MODE);//7 bit addressing in slave mode
 		}
 		//Enable own addressing
 		temp |= (1U << I2C_OAR1_OA1EN);
@@ -414,108 +419,301 @@ I2C_Status_t DAL_I2C_Master_Receive(I2C_Handle_t* I2C_Handle ,uint8_t slave_addr
     return I2C_OK;
 }
 
-I2C_Status_t I2C_Master_Transmit_IT(I2C_Handle_t I2C_Handle ,uint8_t slave_address, uint8_t* pdata , uint32_t size)
+I2C_Status_t I2C_Master_Transmit_IT(I2C_Handle_t* I2C_Handle ,uint8_t slave_address, uint8_t* pdata , uint32_t size, uint8_t Sr)
 {
     volatile uint32_t timeout;
+    uint32_t tsize=0;
     // --- 1. Wait until bus is not busy ---
     timeout = I2C_TIMEOUT;
-    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+    while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) == DAL_OK)
     {
     	if (--timeout == 0)
     	{
     		return I2C_TIMEOUT_ERROR;
     	}
     }
-    //2 ---- 2. copy data to structure ---
-    I2C_Handle.TxLen = size;
-    I2C_Handle.pTxBuffer = pdata;
-    I2C_Handle.i2c_state = I2C_BUSY_IN_TX; // assign busy state
-    I2C_Handle.SlaveAddress = slave_address;
-    //3. ---- 3, enable IT ---
-    I2C_Handle.pI2Cx->I2C_CR1 |=(0x7F << 1); // enable TXEIE, TCIE, STOPIE, NACKIE, ERRIE,RXIE,ADDRIE
-    //4. ---
+    if((size == 0U) || (pdata == NULL))
+    {
+    	return I2C_CONFIG_ERROR;
+    }
+    //2. ---- 2. copy data to structure ---
+    I2C_Handle->pTxBuffer = pdata;
+	I2C_Handle->TxLen   = size;
+	I2C_Handle->TxCount   = size;
+    I2C_Handle->i2c_state = I2C_BUSY_IN_TX; // assign busy state
+    I2C_Handle->SlaveAddress = (slave_address << 1U);
+	I2C_Handle->Sr =  Sr; // Repeated Start
+    if(size > 255U )
+    {
+    	//enable RELOAD
+    	I2C_Handle->pI2Cx->I2C_CR2 |= (1U << I2C_CR2_RELOAD);
+    	tsize = 255U;
+    }
+    else
+    {
+    	tsize = size;
+    }
+    //3. --setup CR2 - slave address , nbytea , R/W
+    uint32_t temp_reg = 0U;
+    temp_reg |= (uint32_t) (slave_address << 1U);
+    temp_reg |= ((tsize&0xFFU) << I2C_CR2_NBYTEST);
+    temp_reg &= ~(1U << I2C_CR2_RD_WRN);
+    I2C_Handle->pI2Cx->I2C_CR2 = temp_reg;
+    //4. --setup CR2 - enable interrupts
+    I2C_Handle->pI2Cx->I2C_CR1 |= ((1U << I2C_CR1_EERIE) | (1U << I2C_CR1_NACKIE) | (1U << I2C_CR1_STOPIE) |(1U << I2C_CR1_TXIE) | (1U << I2C_CR1_TCIE));
+    //5. --generate start
+	I2C_Handle->pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_START);
 	return I2C_OK;
 }
 
-I2C_Status_t I2C_Master_Receive_IT(I2C_Handle_t I2C_Handle ,uint8_t slave_address, uint8_t* pdata , uint32_t size)
+I2C_Status_t I2C_Master_Receive_IT(I2C_Handle_t* I2C_Handle ,uint8_t slave_address, uint8_t* pdata , uint32_t size, uint8_t Sr)
 {
 	volatile uint32_t timeout;
+    uint32_t tsize=0;
 	// --- 1. Wait until bus is not busy ---
 	timeout = I2C_TIMEOUT;
-	while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) != DAL_OK)
+	while(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_BUSY) == DAL_OK)
 	{
 		if (--timeout == 0)
 		{
 			return I2C_TIMEOUT_ERROR;
 		}
 	}
+    if(size == 0U)
+    {
+    	return I2C_CONFIG_ERROR;
+    }
 	//2 ---- 2. copy data to structure ---
-	I2C_Handle.RxLen   = size;
-	I2C_Handle.RxCount = size;
-	I2C_Handle.pRxBuffer = pdata;
-	I2C_Handle.i2c_state = I2C_BUSY_IN_RX; // assign busy state
-	I2C_Handle.SlaveAddress = slave_address;
-	//3. ---- 3, Enable IT ---
+	I2C_Handle->RxLen   = size;
+	I2C_Handle->RxCount = size;
+	I2C_Handle->pRxBuffer = pdata;
+	I2C_Handle->i2c_state = I2C_BUSY_IN_RX; // assign busy state
+	I2C_Handle->SlaveAddress = slave_address;
+	I2C_Handle->Sr =  Sr; // Repeated Start
+    if(size > 255U )
+    {
+    	//enable RELOAD
+    	I2C_Handle->pI2Cx->I2C_CR2 |= (1U << I2C_CR2_RELOAD);
+    	tsize = 255U;
+    }
+    else
+    {
+    	tsize = size;
+    }
+	//3. ---- 3. Configure CR2 register - slave address , read/write , number of bytes
 	uint32_t temp_reg = 0;
-	// Configure CR2 register - slave address , read/write , number of bytes
 	temp_reg = 0;
 	temp_reg |= (uint32_t)(slave_address << 1);
 	temp_reg |= (1U << I2C_CR2_RD_WRN);
-	temp_reg |= (size & 0xFFU) << I2C_CR2_NBYTEST;
-	I2C_Handle.pI2Cx->I2C_CR2 = temp_reg;
+	temp_reg |= (tsize & 0xFFU) << I2C_CR2_NBYTEST;
+	I2C_Handle->pI2Cx->I2C_CR2 = temp_reg;
 	// 3. Enable Interrupts
 	// We need RXIE (to get data), NACKIE (fail), STOPIE (complete), ERRIE (errors), ADDRIE (address matched)
 	// Do NOT enable TXIE here.
-	temp_reg |=(I2C_CR1_ERRIE | I2C_CR1_ADDRIE | I2C_CR1_TXIS | I2C_CR1_NACKIE | I2C_CR1_RXIE | I2C_CR1_STOPIE);
-	I2C_Handle.pI2Cx->I2C_CR1 |= temp_reg;
+    I2C_Handle->pI2Cx->I2C_CR1 |=((1U << I2C_CR1_EERIE) | (1U << I2C_CR1_ADDRIE)  | (1U << I2C_CR1_NACKIE) | (1U << I2C_CR1_RXIE) | (1U << I2C_CR1_STOPIE));
 	//4. --- 4,Start I2C communication by generating START condition
-	I2C_Handle.pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_START);
+	I2C_Handle->pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_START);
 	return I2C_OK;
 }
-
-void DAL_I2C_Handle_ADDR(I2C_Handle_t* I2C_Handle)
+/**
+ * @fn void DAL_I2C_ADDRIT_Handling(void)
+ * @brief Handles irq routine when address is matched in slave mode
+ *
+ * @pre
+ * @post
+ */
+static void DAL_I2C_ADDRIT_Handling(I2C_Handle_t* I2C_Handle, uint32_t isr_reg , uint32_t cr1_reg )
 {
-	//clear ADDR flag is done in IRQ handling function
-	I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_ADDRCF;
-	//check if master or slave mode
-
+	uint32_t size =0;
+	if(I2C_Handle->i2c_state ==I2C_BUSY_IN_RX)
+	{
+		size = I2C_Handle->RxLen;
+	}
+	else if(I2C_Handle->i2c_state ==I2C_BUSY_IN_TX)
+	{
+		size = I2C_Handle->TxLen;
+	}
+	if(((isr_reg >> I2C_ISR_ADDR)&0x1) && ((cr1_reg >> I2C_CR1_ADDRIE)&0x1))
+	{
+		//clear ADDR flag is done in IRQ handling function
+		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_ADDRCF;
+		//read the R/W bit
+		uint8_t dir = (uint8_t) ((I2C_Handle->pI2Cx->I2C_ISR >> I2C_ISR_DIR) & 0x1);
+		if(dir == I2C_ISR_DIR_WRITE)
+		{
+			//setup cr2 with nbytes , direction
+			I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST);
+			I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+			I2C_Handle->pI2Cx->I2C_CR2 &= ~(1U << I2C_CR2_RD_WRN);
+			//enable interrupts
+			I2C_Handle->i2c_state = I2C_BUSY_IN_TX;
+			// Enable TXIE (to send data) and disable RXIE
+			I2C_Handle->pI2Cx->I2C_CR1 |= (1U << I2C_CR1_TXIE);
+			I2C_Handle->pI2Cx->I2C_CR1 &= ~(1U << I2C_CR1_RXIE);
+		}
+		else
+		{
+			//setup cr2 with nbytes , direction
+			I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST);
+			I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+			I2C_Handle->pI2Cx->I2C_CR2 |= (1U << I2C_CR2_RD_WRN);
+			//enable interrupts
+			I2C_Handle->i2c_state = I2C_BUSY_IN_RX;
+			// Enable RXIE (to send data) and disable TXIE
+			I2C_Handle->pI2Cx->I2C_CR1 |= (1U << I2C_CR1_RXIE);
+			I2C_Handle->pI2Cx->I2C_CR1 &= ~(1U << I2C_CR1_TXIE);
+		}
+		//NOTIFY Application
+		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_ADDR_MATCH);
+	}
 }
+static void DAL_I2C_TCR_Handling(I2C_Handle_t* I2C_Handle)
+{
+	if((I2C_Handle->TxCount > 255U ) && (I2C_Handle->i2c_state == I2C_BUSY_IN_TX))
+	{
+		uint8_t size = (uint8_t) I2C_Handle->TxLen;
+		if(size < 255)
+		{
+			//disable RELOAD
+			I2C_Handle->pI2Cx->I2C_CR2 &=~(1U << I2C_CR2_RELOAD);
+			//load NBYTES
+				I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST);
+			I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+		}
+		else
+		{
+			size = 255U;
+			//load NBYTES
+			I2C_Handle->pI2Cx->I2C_CR2 &= ~(0xFFU << I2C_CR2_NBYTEST);
+			I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+		}
+	}
+	else if((I2C_Handle->RxCount > 255U ) && (I2C_Handle->i2c_state == I2C_BUSY_IN_TX))
+	{
+		uint8_t size = (uint8_t) (I2C_Handle->RxLen);
+		if(size < 255)
+		{
+			//disable RELOAD
+			I2C_Handle->pI2Cx->I2C_CR2 &=~(1U << I2C_CR2_RELOAD);
+			//load NBYTES
+			size = I2C_Handle->TxLen;
+			I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+		}
+		else
+		{
+			size = 255U;
+			//load NBYTES
+			I2C_Handle->pI2Cx->I2C_CR2 |= (size << I2C_CR2_NBYTEST);
+		}
+	}
+}
+
+static void DAL_I2C_TC_Handling(I2C_Handle_t* I2C_Handle)
+{
+	if(I2C_Handle->Sr == REPEATED_START_EN)
+	{
+		//notify application
+		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_TC);
+	}
+	else
+	{
+		//send stop signal which clears the flag
+		I2C_Handle->pI2Cx->I2C_CR2 |= (1U<<I2C_CR2_STOP);
+		//notify application
+		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_TC);
+	}
+}
+
+static void DAL_I2C_NACKF_Handling(I2C_Handle_t* I2C_Handle)
+{
+	//clear NACKF flag
+	I2C_Handle->pI2Cx->I2C_ICR |= (1U<<I2C_ICR_NACKCF);
+	//generate stop condition
+	I2C_Handle->pI2Cx->I2C_CR2 |= (1U << I2C_CR2_STOP);
+	//disable interrupts
+	I2C_Handle->pI2Cx->I2C_CR1 &= ~((1U << I2C_CR1_NACKIE) | (1U << I2C_CR1_RXIE) | (1U << I2C_CR1_TXIE)| (1U << I2C_CR1_STOPIE) | (1U << I2C_CR1_TCIE));
+	//reset structure data
+	I2C_Handle->ErrorCode = I2C_ERROR_NACK;
+	I2C_Handle->RxCount = 0;
+	I2C_Handle->TxCount = 0;
+	I2C_Handle->TxLen = 0;
+	I2C_Handle->RxLen = 0;
+	I2C_Handle->i2c_state = I2C_READY;
+	I2C_Handle->pRxBuffer = NULL;
+	I2C_Handle->pTxBuffer = NULL;
+}
+
+static void DAL_I2C_STOPF_Handling(I2C_Handle_t* I2C_Handle)
+{
+	//clear STOPF flag
+	I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_STOPCF;
+	//disable interrupts
+	I2C_Handle->pI2Cx->I2C_CR1 &= ~((1U << I2C_CR1_NACKIE) | (1U << I2C_CR1_RXIE) | (1U << I2C_CR1_TXIE)| (1U << I2C_CR1_STOPIE) | (1U << I2C_CR1_TCIE));
+	//reset structure data
+	I2C_Handle->ErrorCode = 0;
+	I2C_Handle->RxCount = 0;
+	I2C_Handle->TxCount = 0;
+	I2C_Handle->TxLen = 0;
+	I2C_Handle->RxLen = 0;
+	I2C_Handle->i2c_state = I2C_READY;
+	I2C_Handle->pRxBuffer = NULL;
+	I2C_Handle->pTxBuffer = NULL;
+}
+
 void I2C_EV_IRQHandling(I2C_Handle_t* I2C_Handle)
 {
 	uint32_t isr_reg = I2C_Handle->pI2Cx->I2C_ISR;
 	uint32_t cr1_reg = I2C_Handle->pI2Cx->I2C_CR1;
 	//1. Handle ADDR event - addrie is enabled and addrcf is triggerd
-	if(((isr_reg >> I2C_ISR_ADDR)&0x1) && ((cr1_reg >> I2C_CR1_ADDRIE)&0x1))
+	if(I2C_Handle->i2c_state == I2C_READY) // IN Slave mode
 	{
-		DAL_I2C_Handle_ADDR(I2C_Handle);
+		DAL_I2C_ADDRIT_Handling(I2C_Handle,isr_reg,cr1_reg);
 	}
+	else if(((I2C_Handle->i2c_state == I2C_BUSY_IN_RX)) || ((I2C_Handle->i2c_state == I2C_BUSY_IN_TX)))
+	{
+		//Handle TXE event
+		if(((isr_reg >> I2C_ISR_TXIS)&0x1) && ((cr1_reg >> I2C_CR1_TXIE)&0x1))
+		{
+			if(I2C_Handle->TxLen !=0)
+			{
+				I2C_Handle->pI2Cx->I2C_TXDR =  (uint32_t) *(I2C_Handle->pTxBuffer);
+				I2C_Handle->pTxBuffer++;
+				I2C_Handle->TxLen--;
+			}
+		}
+		//Handle RXE event
+		if(((isr_reg >> I2C_ISR_RXNE)&0x1) && ((cr1_reg >> I2C_CR1_RXIE)&0x1))
+		{
+			if(I2C_Handle->RxLen !=0)
+			{
+				*(I2C_Handle->pRxBuffer) = (uint8_t) (I2C_Handle->pI2Cx->I2C_RXDR);
+				I2C_Handle->pRxBuffer++;
+				I2C_Handle->RxLen--;
+			}
+		}
+		//4. Handle TC event
+		if(((isr_reg >> I2C_ISR_TCR)&0x1) && ((cr1_reg >> I2C_CR1_TCIE)&0x1) && ((I2C_Handle->pI2Cx->I2C_CR2 >> I2C_CR2_RELOAD)))
+		{
+			DAL_I2C_TCR_Handling(I2C_Handle);
+		}
+		else if(((isr_reg >> I2C_ISR_TC)&0x1) && ((cr1_reg >> I2C_CR1_TCIE)&0x1))
+		{
+			DAL_I2C_TC_Handling(I2C_Handle);
+		}
+	}
+
 	//2. Handle NACKF event
-	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_NACKF) == DAL_OK)
+	if(((isr_reg >> I2C_ISR_NACKF)&0x1) && ((cr1_reg >> I2C_CR1_NACKIE)&0x1))
 	{
-		//clear NACKF flag
-		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_NACKCF;
+		DAL_I2C_NACKF_Handling(I2C_Handle);
 		//notify application
-		DAL_I2C_Handle_NACKF(I2C_Handle);
-		//notify application
-		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_STOP);
+		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_NACK_ERR);
 	}
-	//3. Handle TXE event
-	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_RXNE) == DAL_OK)
-	{
-		DAL_I2C_Handle_RXNE(I2C_Handle);
-	}
-	//3. Handle RXE event
-	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_TXIS) == DAL_OK)
-	{
-		DAL_I2C_Handle_TXIS(I2C_Handle);
-	}
+
 	//3. Handle STOPF event
-	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_STOPF) == DAL_OK)
+	if(((isr_reg >> I2C_ISR_STOPF)&0x1) && ((cr1_reg >> I2C_CR1_STOPIE)&0x1))
 	{
-		//clear STOPF flag
-		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_STOPCF;
-		//do needfull
-		DAL_I2C_Handle_STOPF(I2C_Handle);
+		DAL_I2C_STOPF_Handling(I2C_Handle);
 		//notify application
 		DAL_I2C_EV_ApplicationEventCallback(I2C_Handle , I2C_EV_STOP);
 	}
@@ -537,7 +735,7 @@ void I2C_ERR_IRQHandling(I2C_Handle_t* I2C_Handle)
 		//clear BERR flag
 		I2C_Handle->pI2Cx->I2C_ICR |= I2C_ICR_PECCF;
 		//notify application
-		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_PECERR);
+		DAL_I2C_ER_ApplicationEventCallback(I2C_Handle , I2C_ERROR_PECC);
 	}
 	//3. Handle ARLO event
 	if(DAL_I2C_CheckFlag(I2C_Handle , I2C_ISR_ARLO) == DAL_OK)

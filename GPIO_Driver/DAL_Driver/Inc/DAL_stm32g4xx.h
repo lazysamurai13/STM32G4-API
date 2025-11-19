@@ -366,6 +366,13 @@ typedef struct {
 #define I2C_ERROR_OVR  		2 // Overrun/Underrun
 #define I2C_ERROR_TIMEOUT 	3 // Timeout error
 #define I2C_PECERR 			4 // PEC error
+#define I2C_ERROR_NACK		5 // NACK error
+#define I2C_ERROR_PECC		6 // NACK error
+
+#define I2C_ERROR_NACK		5 // NACK error
+#define I2C_PECERR 			4 // PEC error
+#define I2C_PECERR 			4 // PEC error
+#define I2C_PECERR 			4 // PEC error
 /**
  * GPIO CLK EN macro
  * GPIO CLK EN macro
